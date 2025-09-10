@@ -22,7 +22,7 @@ python3 -m venv lumi_env
   ```
 - En Windows:
   ```cmd
-  .\langchain_env\Scripts\activate
+  .\lumi_env\Scripts\activate
   ```
 
 3. **Instalar las dependencias:**
@@ -37,6 +37,10 @@ Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
 
 ```
 OPENAI_API_KEY=tu_clave_de_openai
+OPENAI_MODEL=modelo_de_openia
+SUPABASE_URL=supabase
+SUPABASE_SERVICE_ROLE_KEY=supabase
+PORT=puerto
 ```
 
 Reemplaza `tu_clave_de_openai` por tu clave real de OpenAI.
@@ -51,6 +55,14 @@ python chatbot.py
 
 # 4. correr el servidor
 uvicorn main:app --host 0.0.0.0 --port 3000 --reload
+uvicorn src.main:app --reload --host 0.0.0.0 --port 3000
 
-## Notas
-- Congelar librerias pip freeze > requirements.txt# lumi_bot
+# 5. Cargar documentos
+python -m src.rag.ingest
+
+# 6. Testing
+python -m src.test.test_retriever
+
+## Notas - Congelar librerias 
+pip freeze > requirements.txt
+
