@@ -1,32 +1,54 @@
-# src/rag/utils.py
 from src.rag.retriever import vs
+from collections import defaultdict
 
-async def get_rag_context(query: str, source: str | None = None) -> str:
+async def get_rag_context(query: str, k: int = 15, top_sources: int = 2) -> str:
     """
-    Recupera contexto del RAG. Si 'source' es None, busca en todos los documentos
-    y detecta el documento dominante automáticamente.
+    Recupera contexto del RAG combinando los documentos más relevantes.
+    Usa la similitud devuelta por Supabase para elegir los documentos dominantes.
     """
-    if source:
-        # 🔎 Búsqueda restringida a un documento concreto
-        docs = vs.similarity_search(query, k=5, filter={"source": source})
-    else:
-        # Paso 1: búsqueda en todos
-        docs = vs.similarity_search(query, k=8)
-        if not docs:
-            return ""
 
-        # Detectar documento dominante
-        sources = {}
-        for d in docs:
+    # Paso 1: búsqueda global con similitud
+    results = vs.similarity_search(query, k=k)
+    if not results:
+        return ""
+
+    # OJO: SupabaseVectorStore devuelve documentos, pero en retriever.invoke(query)
+    # puede traer (doc, score). Asegúrate de qué forma lo retorna.
+    # Aquí asumimos que ya retorna docs con metadata.
+    scores = defaultdict(list)
+
+    for d in results:
+        src = d.metadata.get("source", "unknown")
+        sim = d.metadata.get("similarity", None)  # si tu integración añade similarity en metadata
+        if sim is not None:
+            scores[src].append(float(sim))
+
+    # Calcular similitud promedio por source
+    avg_scores = {src: sum(vals)/len(vals) for src, vals in scores.items()} if scores else {}
+
+    # Si no hay similarity en metadata, fallback: contar ocurrencias
+    if not avg_scores:
+        for d in results:
             src = d.metadata.get("source", "unknown")
-            sources[src] = sources.get(src, 0) + 1
+            scores[src].append(1)
+        avg_scores = {src: sum(vals)/len(vals) for src, vals in scores.items()}
 
-        main_source = max(sources, key=sources.get)
-        print(f"🎯 Documento detectado: {main_source}")
+    # Elegir top fuentes
+    best_sources = sorted(avg_scores, key=avg_scores.get, reverse=True)[:top_sources]
+    print(f"🎯 Documentos dominantes detectados: {best_sources}")
 
-        # Paso 2: repetir búsqueda filtrada en ese documento
-        docs = vs.similarity_search(query, k=8, filter={"source": main_source})
+    # Paso 2: búsqueda refinada en esas fuentes
+    combined = []
+    for src in best_sources:
+        filtered = vs.similarity_search(query, k=5, filter={"source": src})
+        # filtered = vs.similarity_search("desgaste, drama y desconexión", k=5, filter={"source": "disciplina_sin_lagrimas.pdf"})
+        # print([d.page_content[:120] for d in filtered])
+        combined.extend(filtered)
 
-    # Combinar chunks
-    context = "\n\n".join([d.page_content for d in docs])
+    # Fallback si no hubo nada
+    if not combined:
+        combined = results
+
+    # Concatenar chunks
+    context = "\n\n".join([d.page_content for d in combined])
     return context

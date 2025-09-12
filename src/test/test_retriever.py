@@ -4,15 +4,19 @@ from src.rag.utils import get_rag_context
 
 async def main():
     queries = [
-        ("río del bienestar", None),
-        ("desgaste, drama y desconexión", None),
+        "desgaste, drama y desconexión",
+        "río del bienestar",
+        "presencia emocional de los padres",
+        "cómo manejar las rabietas y mantener la conexión con el niño",
+        "importancia de la empatía y la presencia emocional en la crianza",
+        "naves espaciales en la crianza"
     ]
 
-    for q, source in queries:
+    for q in queries:
+        context = await get_rag_context(q)
         print(f"\n🔎 Query: {q}")
-        context = await get_rag_context(q, source=source)
-        print("Resultado del retriever:")
-        print(context[:500], "..." if len(context) > 500 else "")
+        print("Resultado:")
+        print(context[:800], "..." if len(context) > 800 else "")
 
 if __name__ == "__main__":
     asyncio.run(main())

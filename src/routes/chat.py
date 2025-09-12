@@ -59,6 +59,8 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     rag_context = await get_rag_context(payload.message)
     user_context = await get_user_profiles_and_babies(user["id"], supabase)
 
+    print(f"📚 Contexto RAG recuperado:\n{rag_context[:500]}...\n")
+    
     # Prompt de sistema
     system_prompt = (
         "Eres un acompañante cercano para madres y padres. Tu nombre es Lumi. "

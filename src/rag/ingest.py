@@ -45,12 +45,22 @@ def chunk(text):
 def ingest_pdf(path, source_name):
     raw = pdf_to_text(path)
     chunks = chunk(raw)
-    metas = [{"source": source_name, "type": "pdf", "chunk": i} for i,_ in enumerate(chunks)]
+    source_name = source_name.lower().strip()
+    metas = [{"source": source_name, "type": "pdf", "chunk": i} for i, _ in enumerate(chunks)]
     vectorstore.add_texts(texts=chunks, metadatas=metas)
     print(f"✅ Ingestado {len(chunks)} chunks de {source_name}")
 
-if __name__ == "__main__":
-    ingest_pdf("docs/disciplina_sin_lagrimas.pdf", "disciplina_sin_lagrimas.pdf")
+# if __name__ == "__main__":
+#     ingest_pdf("docs/disciplina_sin_lagrimas.pdf", "disciplina_sin_lagrimas.pdf")
 
 # if __name__ == "__main__":
 #     ingest_pdf("docs/el_cerebro_del_niño.pdf", "el_cerebro_del_niño.pdf")
+
+# if __name__ == "__main__":
+#     ingest_pdf("docs/el_poder_de_la_presencia.pdf", "el_poder_de_la_presencia.pdf")
+
+# if __name__ == "__main__":
+#     ingest_pdf("docs/emociones.pdf", "emociones.pdf")
+
+if __name__ == "__main__":
+    ingest_pdf("docs/simplicity_parenting.pdf", "simplicity_parenting.pdf")
