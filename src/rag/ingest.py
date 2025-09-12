@@ -50,4 +50,7 @@ def ingest_pdf(path, source_name):
     print(f"✅ Ingestado {len(chunks)} chunks de {source_name}")
 
 if __name__ == "__main__":
-    ingest_pdf("docs/el_cerebro_del_niño.pdf", "el_cerebro_del_niño.pdf")
+    ingest_pdf("docs/disciplina_sin_lagrimas.pdf", "disciplina_sin_lagrimas.pdf")
+
+# if __name__ == "__main__":
+#     ingest_pdf("docs/el_cerebro_del_niño.pdf", "el_cerebro_del_niño.pdf")

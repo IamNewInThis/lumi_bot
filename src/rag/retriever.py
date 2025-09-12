@@ -1,3 +1,4 @@
+# src/rag/retriever.py
 import os
 from supabase import create_client
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -28,6 +29,6 @@ vs = SupabaseVectorStore(
     embedding=emb,
 )
 
-retriever = vs.as_retriever(search_kwargs={"k": 4})  
+retriever = vs.as_retriever(search_kwargs={"k": 8})  
 
 
