@@ -20,7 +20,6 @@ def get_supabase_config():
 
 # Initialize variables that will be used by the functions
 SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY = get_supabase_config()  
-
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 emb = OpenAIEmbeddings(model="text-embedding-3-small")
 
@@ -36,6 +35,10 @@ def pdf_to_text(path):
     pages = [p.extract_text() or "" for p in reader.pages]
     return "\n\n".join(pages)
 
+def clean_text(text: str) -> str:
+    """Limpia saltos de línea múltiples y espacios extra"""
+    return " ".join(text.split())
+
 def chunk(text):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1200, chunk_overlap=150, separators=["\n\n", "\n", " ", ""]
@@ -45,22 +48,16 @@ def chunk(text):
 def ingest_pdf(path, source_name):
     raw = pdf_to_text(path)
     chunks = chunk(raw)
+    cleaned_chunks = [clean_text(c) for c in chunks]
+
     source_name = source_name.lower().strip()
     metas = [{"source": source_name, "type": "pdf", "chunk": i} for i, _ in enumerate(chunks)]
     vectorstore.add_texts(texts=chunks, metadatas=metas)
     print(f"✅ Ingestado {len(chunks)} chunks de {source_name}")
 
-# if __name__ == "__main__":
-#     ingest_pdf("docs/disciplina_sin_lagrimas.pdf", "disciplina_sin_lagrimas.pdf")
-
-# if __name__ == "__main__":
-#     ingest_pdf("docs/el_cerebro_del_niño.pdf", "el_cerebro_del_niño.pdf")
-
-# if __name__ == "__main__":
-#     ingest_pdf("docs/el_poder_de_la_presencia.pdf", "el_poder_de_la_presencia.pdf")
-
-# if __name__ == "__main__":
-#     ingest_pdf("docs/emociones.pdf", "emociones.pdf")
-
 if __name__ == "__main__":
-    ingest_pdf("docs/simplicity_parenting.pdf", "simplicity_parenting.pdf")
+    # ingest_pdf("docs/disciplina_sin_lagrimas.pdf", "disciplina_sin_lagrimas.pdf")
+    ingest_pdf("docs/el_cerebro_del_niño.pdf", "el_cerebro_del_niño.pdf")
+    # ingest_pdf("docs/el_poder_de_la_presencia.pdf", "el_poder_de_la_presencia.pdf")
+    # ingest_pdf("docs/emociones.pdf", "emociones.pdf")
+    # ingest_pdf("docs/simplicity_parenting.pdf", "simplicity_parenting.pdf")
