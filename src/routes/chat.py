@@ -104,7 +104,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             {"role": "system", "content": f"Usa estrictamente la siguiente información del libro si es relevante:\n\n{rag_context}"},
             {"role": "user", "content": payload.message},
         ],
-        "max_tokens": 500,
+        "max_tokens": 1000,
         "temperature": 0.3,
     }
 
