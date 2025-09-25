@@ -29,10 +29,13 @@ async def get_user_profiles_and_babies(user_id, supabase_client):
     ] if profiles.data else []
 
     baby_texts = []
+    routines_context = ""
     if babies.data:
         for b in babies.data:
             edad_anios = calcular_edad(b["birthdate"])
             edad_meses = calcular_meses(b["birthdate"])
+            rutina = b.get("routines")
+
             baby_texts.append(
                 f"- Bebé: {b['name']}, fecha de nacimiento {b['birthdate']}, "
                 f"edad: {edad_anios} años ({edad_meses} meses aprox.), "
@@ -41,13 +44,26 @@ async def get_user_profiles_and_babies(user_id, supabase_client):
                 f"altura: {b.get('height', 'N/A')} cm"
             ) 
 
+            # Si no hay rutina, sugerir crear una pidiendo detalles
+            if not rutina:
+                routines_context += (
+                    f"⚠️ El bebé {b['name']} no tiene rutina registrada. "
+                    "Si el usuario pide crear una rutina, primero pregúntale qué actividades y horarios quiere incluir. "
+                    "Luego organiza la rutina en formato tabla con columnas: Hora | Actividad | Detalles.\n\n"
+                )
+            else:
+                routines_context += (
+                    f"✅ El bebé {b['name']} ya tiene una rutina registrada. "
+                    "Si el usuario pide modificarla o revisarla, muéstrala en formato tabla y sugiere mejoras.\n\n"
+                )
+
     context = ""
     if profile_texts:
         context += "Perfiles:\n" + "\n".join(profile_texts) + "\n\n"
     if baby_texts:
-        context += "Bebés:\n" + "\n".join(baby_texts)
+        context += "Bebés:\n" + "\n".join(baby_texts) + "\n\n"
 
-    return context.strip()
+    return context.strip(), routines_context.strip()
 
 
 @router.post("/api/chat")
@@ -57,7 +73,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     # Contexto RAG y perfiles/bebés
     rag_context = await get_rag_context(payload.message)
-    user_context = await get_user_profiles_and_babies(user["id"], supabase)
+    user_context, routines_context = await get_user_profiles_and_babies(user["id"], supabase)
 
     print(f"📚 Contexto RAG recuperado:\n{rag_context[:500]}...\n")
     
@@ -101,6 +117,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             {"role": "system", "content": system_prompt},
             {"role": "system", "content": f"Contexto de usuario:\n{user_context}"},
             {"role": "system", "content": f"Contexto del perfil enviado:\n{profile_text}"},
+            {"role": "system", "content": f"Contexto de rutinas:\n{routines_context}"},
             {"role": "system", "content": f"Usa estrictamente la siguiente información del libro si es relevante:\n\n{rag_context}"},
             {"role": "user", "content": payload.message},
         ],

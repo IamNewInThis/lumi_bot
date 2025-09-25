@@ -55,7 +55,7 @@ python chatbot.py
 
 # 4. correr el servidor
 uvicorn main:app --host 0.0.0.0 --port 3000 --reload
-uvicorn src.main:app --reload --host 0.0.0.0 --port 3000
+uvicorn src.main:app --reload --host 0.0.0.0 --port 5000
 
 # 5. Cargar documentos
 python -m src.rag.ingest
