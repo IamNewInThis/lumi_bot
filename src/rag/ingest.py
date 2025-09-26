@@ -57,7 +57,9 @@ def ingest_pdf(path, source_name):
 
 if __name__ == "__main__":
     # ingest_pdf("docs/disciplina_sin_lagrimas.pdf", "disciplina_sin_lagrimas.pdf")
-    ingest_pdf("docs/el_cerebro_del_niño.pdf", "el_cerebro_del_niño.pdf")
+    # ingest_pdf("docs/el_cerebro_del_niño.pdf", "el_cerebro_del_niño.pdf")
     # ingest_pdf("docs/el_poder_de_la_presencia.pdf", "el_poder_de_la_presencia.pdf")
     # ingest_pdf("docs/emociones.pdf", "emociones.pdf")
     # ingest_pdf("docs/simplicity_parenting.pdf", "simplicity_parenting.pdf")
+    # ingest_pdf("docs/Mi_niño_no_me_come.pdf", "Mi_niño_no_me_come.pdf")
+    ingest_pdf("docs/Child_of_mine_Feeding.pdf", "Child_of_mine_Feeding.pdf")
