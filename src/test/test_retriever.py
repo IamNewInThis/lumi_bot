@@ -3,13 +3,32 @@ import asyncio
 from src.rag.utils import get_rag_context
 
 async def main():
+    # Tests específicos por categoría de documentos subidos
     queries = [
-        "desgaste, drama y desconexión",
-        "río del bienestar",
-        "presencia emocional de los padres",
-        "cómo manejar las rabietas y mantener la conexión con el niño",
-        "importancia de la empatía y la presencia emocional en la crianza",
-        "naves espaciales en la crianza"
+        # Tests de SUEÑO (docs/1/)
+        "mi bebé no duerme toda la noche",
+        "cómo hacer rutina de sueño",
+        "despertares nocturnos frecuentes",
+        "destete nocturno gradual",
+        
+        # Tests de ALIMENTACIÓN 
+        # "mi niño no quiere comer",
+        # "rechaza la comida nueva",
+        # "crear hábitos alimentarios saludables",
+        
+        # # Tests de DISCIPLINA/DESARROLLO
+        # "cómo manejar las rabietas",
+        # "disciplina sin gritos",
+        # "desarrollo del cerebro infantil",
+        # "conexión antes que corrección",
+        
+        # # Tests GENERALES
+        # "presencia emocional de los padres",
+        # "simplificar la crianza",
+        # "manejo de emociones infantiles",
+        
+        # # Test de contenido que NO debería estar
+        # "naves espaciales en la crianza"  
     ]
 
     for q in queries:
