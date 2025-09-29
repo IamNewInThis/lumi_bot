@@ -56,11 +56,11 @@ def ingest_pdf(path, source_name):
 
 if __name__ == "__main__":
     # Ingesta documentos 1
-    # ingest_pdf("docs/1/Acompañar_despertares.pdf", "acompañar_despertares.pdf")
+    # ingest_pdf("docs/1/Acompanar_despertares.pdf", "Acompanar_despertares.pdf")
     # ingest_pdf("docs/1/Destete_nocturno.pdf", "Destete_nocturno.pdf")
     # ingest_pdf("docs/1/Dormir_en_su_cuna.pdf", "Dormir_en_su_cuna.pdf")
-    # ingest_pdf("docs/1/Rutina_del_bebé.pdf", "Rutina_del_bebé.pdf")
-    ingest_pdf("docs/1/Sueño_infantil_gonzalo_pin.pdf", "Sueño_infantil_gonzalo_pin.pdf")
+    # ingest_pdf("docs/1/Rutina_del_bebe.pdf", "Rutina_del_bebe.pdf")
+    # ingest_pdf("docs/1/Sueño_infantil_gonzalo_pin.pdf", "Sueño_infantil_gonzalo_pin.pdf")
 
     # Ingesta documentos 2
     # ingest_pdf("docs/2/AE.pdf", "AE.pdf")
@@ -69,12 +69,12 @@ if __name__ == "__main__":
     # ingest_pdf("docs/2/Cuidados_corporales.pdf", "Cuidados_corporales.pdf")
     # ingest_pdf("docs/2/Cuidados_desagradables.pdf", "Cuidados_desagradables.pdf")
     # ingest_pdf("docs/2/Lavado_nasal.pdf", "Lavado_nasal.pdf")
-    # ingest_pdf("docs/2/Mi_niño_no_me_come.pdf", "Mi_niño_no_me_come.pdf")
+    # ingest_pdf("docs/2/Mi_nino_no_me_come.pdf", "Mi_nino_no_me_come.pdf")
     # ingest_pdf("docs/2/Nebulizador.pdf", "Nebulizador.pdf")
     # ingest_pdf("docs/2/Toxic_twenty.pdf", "Toxic_twenty.pdf")
 
     # Ingesta documentos 3
-    # ingest_pdf("docs/3/Libertad.pdf", "Libertad.pdf")
+    ingest_pdf("docs/3/libertad.pdf", "libertad.pdf")
 
     # Ingesta documentos 4
     # ingest_pdf("docs/disciplina_sin_lagrimas.pdf", "disciplina_sin_lagrimas.pdf")
@@ -82,5 +82,5 @@ if __name__ == "__main__":
     # ingest_pdf("docs/el_poder_de_la_presencia.pdf", "el_poder_de_la_presencia.pdf")
     # ingest_pdf("docs/emociones.pdf", "emociones.pdf")
     # ingest_pdf("docs/simplicity_parenting.pdf", "simplicity_parenting.pdf")
-    # ingest_pdf("docs/4/LIMITES.pdf", "LIMITES.pdf")
+    ingest_pdf("docs/4/LIMITES.pdf", "LIMITES.pdf")
 
