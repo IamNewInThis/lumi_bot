@@ -65,7 +65,9 @@ class KnowledgeConfirmationCache:
             "si", "sí", "yes", "ok", "okay", "vale", "claro", "perfecto",
             "confirmo", "acepto", "por favor", "dale", "sip", "sep",
             "está bien", "esta bien", "bueno", "correcto", "exacto",
-            "👍", "✅", "✓"
+            "guardalo", "guárdalo", "guardala", "guárdala",
+            "👍", "✅", "✓",
+            "claro que sí", "hazlo", "hazlo por favor", "por favor"
         ]
         
         # Respuestas negativas  
@@ -82,12 +84,22 @@ class KnowledgeConfirmationCache:
             return False
             
         # Verificar frases más largas que contienen confirmación clara
-        if len(message_lower) <= 20:  # Solo mensajes cortos para evitar falsos positivos
+        if len(message_lower) <= 25:  # Mensajes cortos para evitar falsos positivos
             for pos in positive_responses:
-                if message_lower == pos or message_lower.startswith(pos + " ") or message_lower.endswith(" " + pos):
+                # Más flexible con separadores (espacio, coma, punto)
+                if (message_lower == pos or 
+                    message_lower.startswith(pos + " ") or 
+                    message_lower.startswith(pos + ",") or
+                    message_lower.startswith(pos + ".") or
+                    message_lower.endswith(" " + pos) or
+                    message_lower.endswith("," + pos) or
+                    message_lower.endswith("." + pos)):
                     return True
             for neg in negative_responses:
-                if message_lower == neg or message_lower.startswith(neg + " ") or message_lower.endswith(" " + neg):
+                if (message_lower == neg or 
+                    message_lower.startswith(neg + " ") or 
+                    message_lower.startswith(neg + ",") or
+                    message_lower.endswith(" " + neg)):
                     return False
         
         return None  # No es una respuesta de confirmación

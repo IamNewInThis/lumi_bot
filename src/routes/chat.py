@@ -11,6 +11,9 @@ from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..services.knowledge_service import BabyKnowledgeService
 from ..utils.knowledge_cache import confirmation_cache
+from ..utils.routine_detector import RoutineDetector
+from ..services.routine_service import RoutineService
+from ..utils.routine_cache import routine_confirmation_cache
 
 router = APIRouter()
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -28,6 +31,10 @@ async def get_user_profiles_and_babies(user_id, supabase_client):
     # Obtener conocimiento específico de todos los bebés
     knowledge_by_baby = await BabyKnowledgeService.get_all_user_knowledge(user_id)
     knowledge_context = BabyKnowledgeService.format_knowledge_for_context(knowledge_by_baby)
+    
+    # Obtener rutinas de todos los bebés
+    routines_by_baby = await RoutineService.get_all_user_routines(user_id)
+    routines_context = RoutineService.format_routines_for_context(routines_by_baby)
 
     profile_texts = [
         f"- Perfil: {p['name']}, fecha de nacimiento {p['birthdate']}, alimentación: {p.get('feeding', 'N/A')}"
@@ -35,33 +42,34 @@ async def get_user_profiles_and_babies(user_id, supabase_client):
     ] if profiles.data else []
 
     baby_texts = []
-    routines_context = ""
     if babies.data:
         for b in babies.data:
             edad_anios = calcular_edad(b["birthdate"])
             edad_meses = calcular_meses(b["birthdate"])
-            rutina = b.get("routines")
+
+            # Determinar etapa de desarrollo
+            etapa_desarrollo = ""
+            if edad_meses <= 6:
+                etapa_desarrollo = "lactante"
+            elif edad_meses <= 12:
+                etapa_desarrollo = "bebé"
+            elif edad_meses <= 24:
+                etapa_desarrollo = "caminador/toddler"
+            elif edad_anios <= 5:
+                etapa_desarrollo = "preescolar"
+            elif edad_anios <= 12:
+                etapa_desarrollo = "escolar"
+            else:
+                etapa_desarrollo = "adolescente"
 
             baby_texts.append(
                 f"- Bebé: {b['name']}, fecha de nacimiento {b['birthdate']}, "
                 f"edad: {edad_anios} años ({edad_meses} meses aprox.), "
-                f"alimentación: {b.get('feeding', 'N/A')}"
+                f"etapa de desarrollo: {etapa_desarrollo}, "
+                f"alimentación: {b.get('feeding', 'N/A')}, "
                 f"peso: {b.get('weight', 'N/A')} kg, "
                 f"altura: {b.get('height', 'N/A')} cm"
-            ) 
-
-            # Si no hay rutina, sugerir crear una pidiendo detalles
-            if not rutina:
-                routines_context += (
-                    f"⚠️ El bebé {b['name']} no tiene rutina registrada. "
-                    "Si el usuario pide crear una rutina, primero pregúntale qué actividades y horarios quiere incluir. "
-                    "Luego organiza la rutina en formato tabla con columnas: Hora | Actividad | Detalles.\n\n"
-                )
-            else:
-                routines_context += (
-                    f"✅ El bebé {b['name']} ya tiene una rutina registrada. "
-                    "Si el usuario pide modificarla o revisarla, muéstrala en formato tabla y sugiere mejoras.\n\n"
-                )
+            )
 
     context = ""
     if profile_texts:
@@ -114,10 +122,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     user_id = user["id"]
     
-    # 🔥 NUEVO: Verificar primero si es una respuesta de confirmación
+    # Verificar si es una respuesta de confirmación de preferencias (KNOWLEDGE)
     confirmation_response = confirmation_cache.is_confirmation_response(payload.message)
     if confirmation_response is not None and confirmation_cache.has_pending_confirmation(user_id):
-        print(f"🎯 Detectada respuesta de confirmación: {confirmation_response}")
+        print(f"🎯 Detectada respuesta de confirmación de conocimiento: {confirmation_response}")
         
         pending_data = confirmation_cache.get_pending_confirmation(user_id)
         if pending_data:
@@ -165,36 +173,125 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
                 confirmation_cache.clear_pending_confirmation(user_id)
                 return {"answer": "👌 Entendido, no guardaré esa información.", "usage": {}}
 
+    # Verificar si es una respuesta de confirmación de RUTINA
+    routine_confirmation_response = routine_confirmation_cache.is_confirmation_response(payload.message)
+    if routine_confirmation_response is not None and routine_confirmation_cache.has_pending_confirmation(user_id):
+        print(f"🎯 Detectada respuesta de confirmación de rutina: {routine_confirmation_response}")
+        
+        pending_routine_data = routine_confirmation_cache.get_pending_confirmation(user_id)
+        if pending_routine_data:
+            if routine_confirmation_response:  # Usuario confirmó la rutina
+                try:
+                    routine_data = pending_routine_data["routine"]
+                    
+                    # Buscar el baby_id basado en el nombre
+                    baby_id = await RoutineService.find_baby_by_name(
+                        user_id, 
+                        routine_data.get("baby_name", "")
+                    )
+                    
+                    if baby_id:
+                        # 1. GUARDAR LA RUTINA en tablas específicas
+                        saved_routine = await RoutineService.save_routine(
+                            user_id, 
+                            baby_id, 
+                            routine_data
+                        )
+                        
+                        # 2. TAMBIÉN GUARDAR COMO CONOCIMIENTO GENERAL
+                        try:
+                            routine_name = routine_data.get("routine_name", "Rutina")
+                            routine_summary = routine_data.get("context_summary", "Rutina establecida")
+                            
+                            # Crear entrada de conocimiento basada en la rutina
+                            knowledge_data = {
+                                "category": "rutinas",
+                                "subcategory": "estructura diaria",
+                                "title": routine_name,
+                                "description": routine_summary,
+                                "importance_level": 3
+                            }
+                            
+                            # Guardar también en baby_knowledge
+                            await BabyKnowledgeService.save_knowledge(
+                                user_id, 
+                                baby_id, 
+                                knowledge_data
+                            )
+                            
+                            print(f"✅ Rutina guardada en AMBOS sistemas: rutinas + conocimiento")
+                            
+                        except Exception as knowledge_error:
+                            print(f"⚠️ Error guardando conocimiento de rutina: {knowledge_error}")
+                            # No fallar si el conocimiento falla, la rutina ya se guardó
+                        
+                        routine_confirmation_cache.clear_pending_confirmation(user_id)
+                        
+                        activities_count = saved_routine.get("activities_count", 0)
+                        
+                        response_text = f"✅ ¡Excelente! He guardado la rutina **{routine_name}** con {activities_count} actividades en el sistema de rutinas y también como conocimiento general. Ahora podré ayudarte mejor con horarios y sugerencias personalizadas."
+                        
+                        return {"answer": response_text, "usage": {}}
+                    else:
+                        routine_confirmation_cache.clear_pending_confirmation(user_id)
+                        return {"answer": "❌ No pude encontrar el bebé mencionado. Por favor intenta de nuevo.", "usage": {}}
+                        
+                except Exception as e:
+                    print(f"Error guardando rutina confirmada: {e}")
+                    routine_confirmation_cache.clear_pending_confirmation(user_id)
+                    return {"answer": "❌ Hubo un error guardando la rutina. Por favor intenta de nuevo.", "usage": {}}
+                    
+            else:  # Usuario rechazó la rutina
+                routine_confirmation_cache.clear_pending_confirmation(user_id)
+                return {"answer": "👌 Entendido, no guardaré esa rutina.", "usage": {}}
+
     # Contexto RAG, perfiles/bebés e historial de conversación
     rag_context = await get_rag_context(payload.message)
     user_context, routines_context = await get_user_profiles_and_babies(user["id"], supabase)
     history = await get_conversation_history(user["id"], supabase)  # 👈 historial del backend
 
-
-    print(f"📚 Contexto RAG recuperado:\n{rag_context[:500]}...\n")
+    #print(f"📚 Contexto RAG recuperado:\n{rag_context[:500]}...\n")
     
     # Prompt de sistema
     system_prompt = (
-        "Eres un acompañante cercano para madres y padres. Tu nombre es Lumi. "
-        "Responde de forma cálida, breve y coloquial, usando ejemplos simples y naturales. "
-        "Si hay información en el contexto de documentos, úsala de manera explícita en tu respuesta. "
-        "Nunca inventes información fuera de los documentos, solo completa con empatía si el contexto no tiene la respuesta. "
-        "No empieces siempre tus respuestas con 'Hola' o saludos, salvo que el usuario te salude primero. "
-        "Si el usuario solo saluda, responde también con un saludo corto y amistoso, sin consejos extra. "
-        "Evita sonar académico o demasiado formal. "
-        f"La fecha de hoy es {today}. Si el usuario pregunta por la fecha actual, responde con esta. "
-        "Cuando alguien te hace una consulta sobre crianza, empieza por considerar la edad exacta del niño o niña, "
-        "ya que esto define qué comportamientos son esperables y cómo acompañarlos. "
-        "Explica brevemente por qué ocurre lo que pasa, desde el desarrollo emocional, neurológico o conductual, "
-        "para que el adulto entienda el trasfondo y no solo el síntoma. "
-        "Si faltan datos importantes, pídelos antes de avanzar. "
-        "A partir de ahí, propone estrategias concretas y realistas, siempre desde una mirada respetuosa "
-        "que prioriza el vínculo y la seguridad emocional. "
-        "Cuando corresponda, incluye ejemplos de frases que ayuden a poner en palabras lo que ocurre. "
-        "Termina tus respuestas con una pregunta abierta que permita seguir ajustando la guía a la situación real. "
-        "La idea no es dar fórmulas mágicas, sino acompañar a construir respuestas que tengan sentido y funcionen en la familia."
+        "Eres Lumi, un acompañante especializado en crianza respetuosa para madres y padres. "
+        "Tu estilo es cálido, cercano y profesional, con respuestas estructuradas y específicas. "
+        
+        "## METODOLOGÍA DE RESPUESTA:\n"
+        "1. **CONTEXTUALIZACIÓN**: Siempre inicia mencionando la edad específica del niño/a y explica por qué es relevante para la consulta\n"
+        "2. **FUNDAMENTOS**: Explica brevemente el 'por qué' desde el desarrollo neurológico, emocional o conductual\n"
+        "3. **PUNTOS CLAVE**: Organiza la información en secciones claras con emojis (🔎 Puntos clave, ✅ Estrategias, 📌 Cuándo consultar)\n"
+        "4. **ESTRATEGIAS CONCRETAS**: Proporciona acciones específicas y realistas, no generalidades\n"
+        "5. **PREGUNTA DE SEGUIMIENTO**: Termina con una pregunta que profundice en la situación específica\n\n"
+        
+        "## DIRECTRICES ESPECÍFICAS:\n"
+        "- Usa SIEMPRE la información del contexto de documentos cuando sea relevante\n"
+        "- Menciona conceptos como 'división de responsabilidades', 'autorregulación', 'etapas del desarrollo' cuando aplique\n"
+        "- Estructura tus respuestas con subsecciones claras usando emojis\n"
+        "- Sé específico sobre rangos de edad y ventanas de desarrollo\n"
+        "- Incluye cuándo es normal vs cuándo consultar a un profesional\n"
+        "- Usa ejemplos de frases concretas cuando sea útil\n"
+        "- Prioriza el vínculo y la comprensión sobre las técnicas de control\n\n"
+        
+        "## FORMATO ESPECIAL PARA RUTINAS:\n"
+        "- Cuando el usuario pregunte sobre rutinas o horarios, SIEMPRE proporciona la información en formato de tabla markdown\n"
+        "- Usa este formato exacto: | Hora | Actividad | Detalles |\n"
+        "- Incluye horarios específicos en formato HH:MM o rangos HH:MM-HH:MM\n"
+        "- Sé específico en los detalles de cada actividad\n"
+        "- Ejemplo de formato correcto:\n"
+        "  | 15:00-15:20 | Matemáticas | Ejercicios de suma y resta |\n"
+        "  | 15:20-15:25 | Descanso | Estirarse y tomar agua |\n\n"
+        
+        "## TONO Y ESTILO:\n"
+        "- Cálido pero informativo, evita ser demasiado casual\n"
+        "- No empieces siempre con saludos salvo que el usuario salude primero\n"
+        "- Evita el lenguaje académico excesivo pero mantén rigor en los conceptos\n"
+        "- Usa markdown para estructura (negritas, listas, emojis)\n\n"
+        
+        f"La fecha de hoy es {today}. "
+        "Cuando analices la edad del niño/a, considera las etapas de desarrollo específicas: "
+        "lactantes (0-6m), bebés (6-12m), caminadores (12-24m), preescolares (2-5a), escolares (6-12a), adolescentes (12+a)."
     )
-
 
     # Formatear el perfil que viene en el payload
     profile_text = ""
@@ -211,14 +308,14 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         "model": OPENAI_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "system", "content": f"Contexto de usuario:\n{user_context}"},
-            {"role": "system", "content": f"Contexto del perfil enviado:\n{profile_text}"},
-            {"role": "system", "content": f"Contexto de rutinas:\n{routines_context}"},
-            {"role": "system", "content": f"Usa estrictamente la siguiente información del libro si es relevante:\n\n{rag_context}"},
+            {"role": "system", "content": f"INFORMACIÓN ESPECÍFICA DEL USUARIO:\n{user_context}"},
+            {"role": "system", "content": f"PERFIL ENVIADO EN ESTA CONSULTA:\n{profile_text}"},
+            {"role": "system", "content": f"CONTEXTO DE RUTINAS:\n{routines_context}"},
+            {"role": "system", "content": f"CONOCIMIENTO DE DOCUMENTOS EXPERTOS (úsalo como base teórica cuando sea relevante):\n\n{rag_context}\n\nIMPORTANTE: Este contexto proviene de libros especializados en crianza. Úsalo para fundamentar tus respuestas con conceptos como división de responsabilidades, autorregulación, desarrollo neurológico, etc."},
             *history,  
             {"role": "user", "content": payload.message},
         ],
-        "max_tokens": 1000,
+        "max_tokens": 1200,
         "temperature": 0.3,
     }
 
@@ -234,9 +331,54 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     assistant = data.get("choices", [])[0].get("message", {}).get("content", "")
     usage = data.get("usage", {})
 
-    # NUEVA FUNCIONALIDAD: Detectar conocimiento importante en el mensaje del usuario
+    # Variables para controlar el flujo de detección dual
+    routine_detected_and_saved = False
+    assistant_with_routine_confirmation = ""
+
+    # PRIMERA PRIORIDAD: Detectar rutinas en el mensaje del usuario
     try:
-        print(f"🔍 Analizando mensaje para conocimiento: {payload.message}")
+        print(f"� Analizando mensaje para rutinas: {payload.message}")
+        
+        # Usar el mismo contexto de bebés
+        babies = supabase.table("babies").select("*").eq("user_id", user_id).execute()
+        babies_context = babies.data or []
+        
+        # Analizar el mensaje para detectar información de rutinas
+        detected_routine = await RoutineDetector.analyze_message(
+            payload.message, 
+            babies_context
+        )
+        print(f"🕐 Rutina detectada: {detected_routine}")
+        
+        # Si se detecta una rutina, guardar en caché y preguntar confirmación
+        if detected_routine and RoutineDetector.should_ask_confirmation(detected_routine):
+            print("✅ Se debe preguntar confirmación de rutina")
+            
+            # Guardar en caché para confirmación posterior
+            routine_confirmation_cache.set_pending_confirmation(user_id, detected_routine, payload.message)
+            
+            confirmation_message = RoutineDetector.format_confirmation_message(detected_routine)
+            
+            # Agregar la pregunta de confirmación a la respuesta
+            assistant_with_routine_confirmation = f"{assistant}\n\n� {confirmation_message}"
+            
+            return {
+                "answer": assistant_with_routine_confirmation, 
+                "usage": usage
+            }
+        else:
+            print("❌ No se debe preguntar confirmación de rutina")
+        
+    except Exception as e:
+        print(f"Error en detección de rutinas: {e}")
+        import traceback
+        traceback.print_exc()
+        # Continuar normalmente si falla la detección
+        pass
+
+    # SEGUNDA PRIORIDAD: Detectar conocimiento importante en el mensaje del usuario
+    try:
+        print(f"� Analizando mensaje para conocimiento: {payload.message}")
         
         # Obtener información de bebés para el contexto
         babies = supabase.table("babies").select("*").eq("user_id", user_id).execute()
@@ -260,14 +402,14 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             confirmation_message = KnowledgeDetector.format_confirmation_message(detected_knowledge)
             
             # Agregar la pregunta de confirmación a la respuesta
-            assistant_with_confirmation = f"{assistant}\n\n💡 {confirmation_message}"
+            assistant_with_confirmation = f"{assistant}\n\n� {confirmation_message}"
             
             return {
                 "answer": assistant_with_confirmation, 
                 "usage": usage
             }
         else:
-            print("❌ No se debe preguntar confirmación")
+            print("❌ No se debe preguntar confirmación de conocimiento")
         
     except Exception as e:
         print(f"Error en detección de conocimiento: {e}")
@@ -278,53 +420,4 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     return {"answer": assistant, "usage": usage}
 
-@router.get("/api/test-knowledge")
-async def test_knowledge():
-    """
-    Endpoint de prueba para verificar que el sistema funciona
-    """
-    return {
-        "message": "Sistema de conocimiento funcionando",
-        "detector_available": "KnowledgeDetector" in globals(),
-        "service_available": "BabyKnowledgeService" in globals()
-    }
 
-@router.get("/api/test-cache/{user_id}")
-async def test_cache(user_id: str):
-    """
-    Endpoint de prueba para ver el estado del caché
-    """
-    pending = confirmation_cache.get_pending_confirmation(user_id)
-    return {
-        "has_pending": confirmation_cache.has_pending_confirmation(user_id),
-        "pending_data": pending
-    }
-
-@router.post("/api/test-detect")
-async def test_detect(payload: ChatRequest, user=Depends(get_current_user)):
-    """
-    Endpoint de prueba para probar solo la detección de conocimiento
-    """
-    try:
-        # Obtener información de bebés para el contexto
-        babies = supabase.table("babies").select("*").eq("user_id", user["id"]).execute()
-        babies_context = babies.data or []
-        
-        # Analizar el mensaje para detectar información importante
-        detected_knowledge = await KnowledgeDetector.analyze_message(
-            payload.message, 
-            babies_context
-        )
-        
-        return {
-            "message": payload.message,
-            "babies_found": len(babies_context),
-            "babies_names": [b.get('name', '') for b in babies_context],
-            "detected_knowledge": detected_knowledge,
-            "should_confirm": KnowledgeDetector.should_ask_confirmation(detected_knowledge)
-        }
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e), "traceback": traceback.format_exc()}
