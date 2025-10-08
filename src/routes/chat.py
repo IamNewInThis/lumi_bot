@@ -3,6 +3,7 @@ import os
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
+from pathlib import Path
 from ..models.chat import ChatRequest, KnowledgeConfirmRequest
 from ..auth import get_current_user
 from src.rag.utils import get_rag_context
@@ -23,6 +24,31 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
 if not OPENAI_KEY:
     raise RuntimeError("Falta OPENAI_API_KEY en variables de entorno (.env)")
+
+def load_system_prompt():
+    """Carga el prompt base desde archivo template."""
+    prompt_path = Path(__file__).parent.parent / "prompts" / "system_prompt_base.md"
+    try:
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        raise RuntimeError(f"No se encontró el archivo de prompt en: {prompt_path}")
+
+def format_llm_output(text):
+    """Limpia y formatea la salida del LLM para que sea más natural y legible."""
+    # Limpiar exceso de símbolos de markdown
+    text = text.replace("###", "##")
+    text = text.replace("****", "**")
+    
+    # Remover líneas vacías excesivas
+    import re
+    text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
+    
+    # Limpiar espacios al inicio y final
+    text = text.strip()
+    
+    return text
+
 
 async def get_user_profiles_and_babies(user_id, supabase_client):
     profiles = supabase_client.table("profiles").select("*").eq("id", user_id).execute()
@@ -83,7 +109,7 @@ async def get_user_profiles_and_babies(user_id, supabase_client):
 
     return context.strip(), routines_context.strip()
 
-async def get_conversation_history(user_id, supabase_client, limit_per_role=5):
+async def get_conversation_history(user_id, supabase_client, limit_per_role=7):
     """
     Recupera los últimos mensajes del usuario y del asistente para mantener contexto en la conversación.
     """
@@ -247,167 +273,75 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     # Contexto RAG, perfiles/bebés e historial de conversación
     rag_context = await get_rag_context(payload.message)
+    
+    # Búsqueda RAG especializada para temas específicos
+    specialized_rag = ""
+    message_lower = payload.message.lower()
+    
+    # Detectar consultas de desmame nocturno y agregar contexto especializado
+    if any(keyword in message_lower for keyword in [
+        "tomas nocturnas", "destete nocturno", "desmame nocturno", 
+        "disminuir tomas", "reducir tomas", "quitar tomas", "lorena furtado"
+    ]):
+        specialized_rag = await get_rag_context("desmame nocturno etapas Lorena Furtado destete respetuoso")
+        print(f"🌙 Búsqueda RAG especializada para desmame nocturno")
+    
+    # Detectar consultas sobre trabajo con pareja y agregar contexto neurológico específico
+    elif any(keyword in message_lower for keyword in [
+        "pareja", "esposo", "papá", "padre", "dividir", "ayuda", "trabajo nocturno", 
+        "acompañar", "turno", "por turnos"
+    ]):
+        specialized_rag = await get_rag_context("pareja acompañamiento neurociencia asociación materna trabajo nocturno firmeza tranquila")
+        print(f"👫 Búsqueda RAG especializada para trabajo con pareja")
+    
+    # Detectar consultas sobre vocalizaciones y comportamientos específicos
+    elif any(keyword in message_lower for keyword in [
+        "llora", "ruido", "grita", "alega", "canta", "om", "gruñe", "hace sonido", 
+        "vocaliza", "emite", "sonido raro", "llanto diferente", "se queja"
+    ]):
+        specialized_rag = await get_rag_context("vocalizaciones autorregulación desarrollo emocional llanto descarga neurociencia infantil")
+        print(f"🎵 Búsqueda RAG especializada para vocalizaciones y comportamientos")
+    
+    # Combinar contextos RAG
+    combined_rag_context = f"{rag_context}\n\n--- CONTEXTO ESPECIALIZADO ---\n{specialized_rag}" if specialized_rag else rag_context
     user_context, routines_context = await get_user_profiles_and_babies(user["id"], supabase)
     history = await get_conversation_history(user["id"], supabase)  # 👈 historial del backend
 
     #print(f"📚 Contexto RAG recuperado:\n{rag_context[:500]}...\n")
     
-    # Prompt de sistema
-    system_prompt = (
-        "You are Lumi, a specialized companion in respectful parenting for mothers and fathers. "
-        "Your style is warm, close and professional, with structured and specific responses. "
-        "You can communicate fluently in English, Spanish, and Portuguese - always respond in the same language the user writes to you.\n\n"
-        
-        "## RESPONSE METHODOLOGY:\n"
-        "**ADAPT YOUR RESPONSE LENGTH TO THE QUESTION:**\n"
-        "- For SIMPLE/DIRECT questions (yes/no, basic facts, quick confirmations): Give concise, direct answers (1-3 sentences)\n"
-        "- For COMPLEX topics (detailed guidance, new concepts, problem-solving): Use full structured format below\n\n"
-        
-        "**FOR COMPLEX RESPONSES ONLY:**\n"
-        "1. **CONTEXTUALIZATION**: Start by mentioning the specific age of the child and explain why it's relevant\n"
-        "2. **FUNDAMENTALS**: Briefly explain the 'why' from neurological, emotional, or behavioral development\n"
-        "3. **KEY POINTS**: Organize information in clear sections with emojis (🔎 Key points, ✅ Strategies, 📌 When to consult)\n"
-        "4. **CONCRETE STRATEGIES**: Provide specific and realistic actions, not generalities\n"
-        "5. **FOLLOW-UP QUESTION**: End with a question that deepens the specific situation\n\n"
-        
-        "## SPECIFIC GUIDELINES:\n"
-        "- ALWAYS use information from document context when relevant\n"
-        "- For simple yes/no questions, give direct answers without excessive structure\n"
-        "- For follow-up questions on the same topic, be more concise\n"
-        "- Use structured format only when the question requires detailed explanation\n"
-        "- Mention concepts like 'division of responsibilities', 'self-regulation', 'development stages' when applicable\n"
-        "- Be specific about age ranges and developmental windows when needed\n"
-        "- Include when it's normal vs when to consult a professional only for health concerns\n"
-        "- Prioritize bonding and understanding over control techniques\n\n"
-        
-        "## SPECIAL FORMAT FOR ROUTINES:\n"
-        "- When the user asks about routines or schedules, ALWAYS provide information in markdown table format\n"
-        "- Use this exact format: | Time | Activity | Details |\n"
-        "- Include specific times in HH:MM format or HH:MM-HH:MM ranges\n"
-        "- Be specific in the details of each activity\n"
-        "- Example of correct format:\n"
-        "  | 15:00-15:20 | Mathematics | Addition and subtraction exercises |\n"
-        "  | 15:20-15:25 | Break | Stretch and drink water |\n\n"
-        
-        "## MULTILINGUAL SUPPORT:\n"
-        "- 🇺🇸 ENGLISH: Respond in English when user writes in English\n"
-        "- 🇪🇸 ESPAÑOL: Responde en español cuando el usuario escriba en español\n"
-        "- 🇧🇷 PORTUGUÊS: Responda em português quando o usuário escrever em português\n"
-        "- Always match the user's language exactly\n"
-        "- Maintain the same warm, professional tone in all languages\n\n"
-        
-        "## RESPONSE LENGTH EXAMPLES:\n"
-        "- 'Is this weight normal?' → 'Yes, 20kg at 110cm for a 6-year-old is generally within normal range.'\n"
-        "- 'How do I handle tantrums?' → Use full structured format with strategies and explanations\n"
-        "- 'What time should bedtime be?' → Brief answer with age-appropriate time\n"
-        "- 'My child won't eat vegetables' → Use structured format with detailed strategies\n\n"
-        
-        "## TONE AND STYLE:\n"
-        "- Warm but informative, avoid being too casual\n"
-        "- Don't always start with greetings unless the user greets first\n"
-        "- Match formality level to the question complexity\n"
-        "- Use markdown for structure only when needed\n"
-        "- Be direct and helpful, not overly academic\n\n"
-        
-        f"Today's date is {today}. "
-        "When analyzing the child's age, consider specific developmental stages: "
-        "infants (0-6m), babies (6-12m), toddlers (12-24m), preschoolers (2-5y), school-age (6-12y), adolescents (12+y).\n\n"
-        
-        "## TABLA DE REFERENCIA DE SUEÑO INFANTIL:\n"
-        "Usa esta tabla como referencia para todas las consultas sobre patrones de sueño, siestas y horarios de descanso:\n\n"
-        "| Edad | Ventana de sueño (horas despierto) | Nº de siestas | Límite por siesta | Sueño nocturno | Sueño diurno | Total aprox. |\n"
-        "|------|-----------------------------------|---------------|-------------------|----------------|--------------|-------------|\n"
-        "| 0–1 mes | 40 min – 1 h | 4–5 | hasta 3 h | 8–9 h | 8 h | 16–17 h |\n"
-        "| 2 meses | 1 h – 1,5 h | 4–5 | hasta 2h30 | 9–10 h | 5–6 h | 14–16 h |\n"
-        "| 3 meses | 1,5 h – 2 h | 4 | hasta 2 h | 10–11 h | 4–5 h | 14–16 h |\n"
-        "| 4–6 meses | 2 h – 2,5 h | 3 | hasta 1h30 | 11 h | 3–4 h | 14–15 h |\n"
-        "| 7–8 meses | 2,5 h – 3 h | 3 | hasta 1h30 | 11 h | 3 h | 14 h |\n"
-        "| 9–12 meses | 3 h – 4 h | 2 | 1–2 h | 11 h | 2–3 h | 13–14 h |\n"
-        "| 13–15 meses | 3 h – 4 h | 2 | 1–2 h | 11 h | 2–3 h | 13–14 h |\n"
-        "| 16–24 meses | 5 h – 6 h | 1 | hasta 2 h | 11–12 h | 1–2 h | 12–14 h |\n"
-        "| 2–3 años | 6 h – 7 h | 1 | 1–1h30 | 11–12 h | 1 h | 12–13 h |\n"
-        "| 3 años | 7 h – 8 h | 0–1 | 1–1h30 | 10–11 h | 0–1 h | 10–12 h |\n"
-        "| 4 años | 12 h vigilia | 0–1 | variable | 10–11 h | 0–1 h | 10–12 h |\n\n"
-        
-        "**INSTRUCCIONES PARA USO DE LA TABLA:**\n"
-        "- SIEMPRE consulta esta tabla cuando respondas sobre sueño, siestas, ventanas de vigilia o horarios\n"
-        "- Menciona los rangos específicos según la edad exacta del niño\n"
-        "- Explica qué significa 'ventana de sueño' (tiempo máximo que el niño puede estar despierto sin sobrecansarse)\n"
-        "- Usa estos datos como referencia para evaluar si los patrones actuales son apropiados\n"
-        "- Si los patrones del niño están fuera de estos rangos, sugiere ajustes graduales\n"
-        "- Recuerda que son RANGOS ORIENTATIVOS - cada niño es único\n\n"
-        
-        "## TABLA DE REFERENCIA DE AYUNO ENTRE COMIDAS:\n"
-        "Usa esta tabla para orientar sobre tiempos apropiados entre ingestas según la edad:\n\n"
-        "| Edad del bebé/niño | Tiempo de ayuno recomendado entre ingestas |\n"
-        "|-------------------|--------------------------------------------|\n"
-        "| 0 – 6 meses (lactancia exclusiva) | 2 a 3 horas |\n"
-        "| 6 – 9 meses (inicio alimentación complementaria) | 3 a 3,5 horas |\n"
-        "| 9 – 12 meses (alimentación consolidándose) | 3 a 4 horas |\n"
-        "| 12 – 18 meses | 3 a 4 horas |\n"
-        "| 18 – 24 meses | 3 a 4 horas |\n"
-        "| 2 – 7 años | 3 a 4 horas (4 comidas principales + 1–2 colaciones opcionales) |\n\n"
-        
-        "## RUTINA NOCTURNA RECOMENDADA:\n"
-        "Duración aproximada total: 30 minutos\n"
-        "- **Pecho/Alimentación**: Varía según la edad (ver tabla de lactancia)\n"
-        "- **Baño**: 10 minutos\n"
-        "- **Pijama**: 5 minutos\n"
-        "- **Momento afectivo**: 5 minutos (lectura, caricias, canción)\n\n"
-        
-        "## TABLA DE REFERENCIA DE LACTANCIA:\n"
-        "Duración aproximada de una mamada según la edad:\n\n"
-        "| Edad | Duración aproximada | Características |\n"
-        "|------|--------------------|-----------------|\n"
-        "| 0 a 3 meses | 20–40 minutos | Succión más lenta, pausas frecuentes. El bebé necesita más tiempo para coordinar succión–deglución–respiración |\n"
-        "| 3 a 6 meses | 15–25 minutos | La succión se hace más eficiente. En muchos casos ya vacía un pecho en 10–15 min |\n"
-        "| 6 a 12 meses | 10–20 minutos | Con la introducción de alimentos, la mamada se acorta. El bebé suele succionar con más fuerza y rapidez |\n"
-        "| 12 meses en adelante | 5–15 minutos | Mamada más corta y eficaz |\n\n"
-        
-        "## PROPUESTA DE ALIMENTACIÓN POR MOMENTO DEL DÍA:\n"
-        "Estructura nutricional recomendada:\n\n"
-        "| Momento del día | Estructura nutricional |\n"
-        "|----------------|------------------------|\n"
-        "| Desayuno | Proteína + grasa buena + carbohidrato complejo |\n"
-        "| Media mañana | Fruta ligera + vegetal suave + agua/infusión |\n"
-        "| Almuerzo | Proteína animal principal + verdura cocida + carbohidrato complejo + grasa saludable |\n"
-        "| Merienda | Fruta + grasa buena o fermentado casero |\n"
-        "| Cena | Proteína ligera + verduras cocidas + tubérculo + grasa saludable |\n"
-        "| Antes de dormir | Bebida tibia ligera |\n\n"
-        
-        "**INSTRUCCIONES PARA USO DE ESTAS TABLAS:**\n"
-        "- Consulta la tabla de ayuno para evaluar si los espacios entre comidas son apropiados\n"
-        "- Usa la rutina nocturna como guía para establecer horarios consistentes\n"
-        "- Refiere a los tiempos de lactancia para evaluar si las mamadas están dentro del rango normal\n"
-        "- Utiliza la propuesta de alimentación para sugerir estructuras nutricionales balanceadas\n"
-        "- Adapta las recomendaciones según las necesidades individuales de cada niño\n"
-        "- Recuerda que estos son RANGOS ORIENTATIVOS - cada familia puede tener variaciones"
-    )
-
     # Formatear el perfil que viene en el payload
     profile_text = ""
     if payload.profile:
         profile_data = payload.profile
         profile_text = (
-            "Perfil actual:\n"
+            "**Perfil actual en esta consulta:**\n"
             f"- Fecha de nacimiento: {profile_data.get('dob')}\n"
             f"- Alimentación: {profile_data.get('feeding')}\n"
         )
 
-    # Construcción del body con separación clara de roles
+    # Cargar y formatear el prompt maestro
+    system_prompt_template = load_system_prompt()
+    
+    # Preparar contextos para el template
+    formatted_system_prompt = system_prompt_template.format(
+        today=today,
+        user_context=user_context if user_context else "No hay información específica del usuario disponible.",
+        profile_context=profile_text if profile_text else "No se proporcionó perfil específico en esta consulta.",
+        routines_context=routines_context if routines_context else "No hay rutinas específicas registradas.",
+        rag_context=combined_rag_context if combined_rag_context else "No hay contexto especializado disponible para esta consulta."
+    )
+
+    # Construcción del body con prompt unificado
     body = {
         "model": OPENAI_MODEL,
         "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "system", "content": f"INFORMACIÓN ESPECÍFICA DEL USUARIO:\n{user_context}"},
-            {"role": "system", "content": f"PERFIL ENVIADO EN ESTA CONSULTA:\n{profile_text}"},
-            {"role": "system", "content": f"CONTEXTO DE RUTINAS:\n{routines_context}"},
-            {"role": "system", "content": f"CONOCIMIENTO DE DOCUMENTOS EXPERTOS (úsalo como base teórica cuando sea relevante):\n\n{rag_context}\n\nIMPORTANTE: Este contexto proviene de libros especializados en crianza. Úsalo para fundamentar tus respuestas con conceptos como división de responsabilidades, autorregulación, desarrollo neurológico, etc."},
+            {"role": "system", "content": formatted_system_prompt},
             *history,  
             {"role": "user", "content": payload.message},
         ],
-        "max_tokens": 1200,
-        "temperature": 0.3,
+        "max_tokens": 1800,
+        "temperature": 0.4,
+        "top_p": 0.9,
     }
 
     headers = {"Authorization": f"Bearer {OPENAI_KEY}", "Content-Type": "application/json"}
@@ -420,6 +354,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     data = resp.json()
     assistant = data.get("choices", [])[0].get("message", {}).get("content", "")
+    
+    # Formatear la respuesta para mayor naturalidad
+    assistant = format_llm_output(assistant)
+    
     usage = data.get("usage", {})
 
     # Variables para controlar el flujo de detección dual
