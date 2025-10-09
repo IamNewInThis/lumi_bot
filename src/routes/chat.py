@@ -25,6 +25,8 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 if not OPENAI_KEY:
     raise RuntimeError("Falta OPENAI_API_KEY en variables de entorno (.env)")
 
+print(f"🤖 Usando modelo OpenAI: {OPENAI_MODEL}")
+
 def load_system_prompt():
     """Carga el prompt base desde archivo template."""
     prompt_path = Path(__file__).parent.parent / "prompts" / "system_prompt_base.md"
@@ -322,7 +324,13 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     # Cargar y formatear el prompt maestro
     system_prompt_template = load_system_prompt()
     
-    # Preparar contextos para el template
+    # Preparar contextos para el template (con optimización de longitud)
+    # Limitar el contexto RAG si es muy largo para evitar timeouts
+    max_rag_length = 3000
+    if len(combined_rag_context) > max_rag_length:
+        combined_rag_context = combined_rag_context[:max_rag_length] + "...\n[Contexto truncado por longitud]"
+        print(f"⚠️ Contexto RAG truncado por longitud")
+    
     formatted_system_prompt = system_prompt_template.format(
         today=today,
         user_context=user_context if user_context else "No hay información específica del usuario disponible.",
@@ -330,6 +338,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         routines_context=routines_context if routines_context else "No hay rutinas específicas registradas.",
         rag_context=combined_rag_context if combined_rag_context else "No hay contexto especializado disponible para esta consulta."
     )
+    
+    # Log de longitud del prompt para debug
+    prompt_length = len(formatted_system_prompt)
+    print(f"📏 Longitud del prompt del sistema: {prompt_length} caracteres")
 
     # Construcción del body con prompt unificado
     body = {
@@ -346,11 +358,47 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     headers = {"Authorization": f"Bearer {OPENAI_KEY}", "Content-Type": "application/json"}
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post("https://api.openai.com/v1/chat/completions", json=body, headers=headers)
-
-    if resp.status_code >= 300:
-        raise HTTPException(status_code=502, detail={"openai_error": resp.text})
+    # Retry logic con exponential backoff para manejar timeouts
+    max_retries = 3
+    base_timeout = 45.0
+    
+    for attempt in range(max_retries):
+        try:
+            current_timeout = base_timeout + (attempt * 15)  # 45s, 60s, 75s
+            print(f"🔄 Intento {attempt + 1}/{max_retries} - Timeout: {current_timeout}s")
+            
+            async with httpx.AsyncClient(timeout=current_timeout) as client:
+                resp = await client.post("https://api.openai.com/v1/chat/completions", json=body, headers=headers)
+            
+            if resp.status_code >= 300:
+                error_detail = resp.text
+                print(f"❌ Error OpenAI (intento {attempt + 1}): {error_detail}")
+                if attempt == max_retries - 1:  # Último intento
+                    raise HTTPException(status_code=502, detail={"openai_error": error_detail})
+                continue
+            
+            # Si llegamos aquí, la llamada fue exitosa
+            break
+            
+        except httpx.ReadTimeout as e:
+            print(f"⏰ Timeout en intento {attempt + 1}/{max_retries}")
+            if attempt == max_retries - 1:  # Último intento
+                return {
+                    "answer": "Lo siento, el sistema está experimentando demoras. Por favor, intenta reformular tu pregunta de manera más breve o inténtalo de nuevo en unos momentos.",
+                    "usage": {}
+                }
+            # Esperar antes del siguiente intento
+            import asyncio
+            await asyncio.sleep(2 ** attempt)  # 1s, 2s, 4s
+            continue
+        except Exception as e:
+            print(f"❌ Error inesperado en intento {attempt + 1}: {e}")
+            if attempt == max_retries - 1:
+                return {
+                    "answer": "Hubo un problema técnico. Por favor, intenta de nuevo en unos momentos.",
+                    "usage": {}
+                }
+            continue
 
     data = resp.json()
     assistant = data.get("choices", [])[0].get("message", {}).get("content", "")
