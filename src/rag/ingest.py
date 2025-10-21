@@ -38,6 +38,28 @@ def clean_text(text: str) -> str:
     """Limpia saltos de línea múltiples y espacios extra"""
     return " ".join(text.split())
 
+def get_document_category(source_name: str) -> str:
+    """Asigna categoría basada en el nombre del archivo fuente"""
+    source_lower = source_name.lower()
+    
+    # Categorías específicas por archivo
+    if "night_weaning_shepard_ohta" in source_lower:
+        return "Sueño y descanso"
+    elif any(keyword in source_lower for keyword in ["sueño", "dormir", "despertar", "destete_nocturno", "cuna"]):
+        return "Sueño y descanso"
+    elif any(keyword in source_lower for keyword in ["feeding", "come", "alimenta", "lactancia", "toxic"]):
+        return "Alimentación y lactancia"
+    elif any(keyword in source_lower for keyword in ["disciplina", "lagrimas", "cerebro", "emociones", "limites"]):
+        return "Desarrollo emocional"
+    elif any(keyword in source_lower for keyword in ["rutina", "estructura"]):
+        return "Rutinas y estructura"
+    elif any(keyword in source_lower for keyword in ["cuidado", "dental", "corporal", "nasal", "nebulizador"]):
+        return "Cuidados diarios"
+    elif any(keyword in source_lower for keyword in ["libertad", "presencia", "simplicity", "autonomia"]):
+        return "Autonomía y desarrollo"
+    else:
+        return "General"
+
 def chunk(text):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1200, chunk_overlap=150, separators=["\n\n", "\n", " ", ""]
@@ -50,9 +72,11 @@ def ingest_pdf(path, source_name):
     cleaned_chunks = [clean_text(c) for c in chunks]
 
     source_name = source_name.lower().strip()
-    metas = [{"source": source_name, "type": "pdf", "chunk": i} for i, _ in enumerate(chunks)]
+    category = get_document_category(source_name)
+    
+    metas = [{"source": source_name, "type": "pdf", "chunk": i, "category": category} for i, _ in enumerate(chunks)]
     vectorstore.add_texts(texts=chunks, metadatas=metas)
-    print(f"✅ Ingestado {len(chunks)} chunks de {source_name}")
+    print(f"✅ Ingestado {len(chunks)} chunks de {source_name} - Categoría: {category}")
 
 if __name__ == "__main__":
     # Ingesta documentos 1
@@ -83,4 +107,7 @@ if __name__ == "__main__":
     # ingest_pdf("docs/emociones.pdf", "emociones.pdf")
     # ingest_pdf("docs/simplicity_parenting.pdf", "simplicity_parenting.pdf")
     ingest_pdf("docs/4/LIMITES.pdf", "LIMITES.pdf")
+
+    # Documento específico para categorización de Sueño y descanso
+    # ingest_pdf("docs/night_weaning_shepard_ohta.pdf", "night_weaning_shepard_ohta.pdf")
 
