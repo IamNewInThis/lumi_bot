@@ -29,7 +29,9 @@ print(f"🤖 Usando modelo OpenAI: {OPENAI_MODEL}")
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 SECTIONS_DIR = PROMPTS_DIR / "sections"
+TEMPLATES_DIR = PROMPTS_DIR / "templates"
 
+# Establecer palabras clave para detección de temas
 ROUTINE_KEYWORDS = {
     "organizar rutina", "organizar la rutina", "ajustar horarios", "cambiar horarios",
     "estructurar el día", "horarios de comida", "horarios de sueño",
@@ -58,8 +60,8 @@ BEHAVIOR_KEYWORDS = {
 
 def load_system_prompt(section_files=None):
     """
-    Carga el prompt base y concatena secciones adicionales según sea necesario.
-    `section_files` debe ser una lista de nombres de archivo (por ejemplo, ["style.md"]).
+        Carga el prompt base y concatena secciones adicionales según sea necesario.
+        `section_files` debe ser una lista de nombres de archivo (por ejemplo, ["style.md"]).
     """
     base_path = PROMPTS_DIR / "system_prompt_base.md"
     if not base_path.exists():
@@ -85,14 +87,14 @@ def load_system_prompt(section_files=None):
 
 def detect_consultation_type_and_load_template(message):
     """
-    Detecta el tipo de consulta y carga el template específico correspondiente.
+        Detecta el tipo de consulta y carga el template específico correspondiente.
     """
     message_lower = message.lower()
     
     # Palabras clave para rutinas (debe ir PRIMERO para tener prioridad)
     routine_keywords = ["rutina", "organizar", "horarios", "estructura", "día completo", "cronograma"]
     if any(keyword in message_lower for keyword in routine_keywords):
-        template_path = PROMPTS_DIR / "template_rutina_mejorada.md"
+        template_path = TEMPLATES_DIR / "template_rutina_mejorada.md"
         if template_path.exists():
             with open(template_path, "r", encoding="utf-8") as f:
                 return f"\n\n## TEMPLATE ESPECÍFICO PARA RUTINAS MEJORADAS:\n\n{f.read()}"
@@ -100,7 +102,7 @@ def detect_consultation_type_and_load_template(message):
     # Palabras clave para ideas creativas de alimentos
     creative_food_keywords = ["ideas creativas", "presentar", "verduras", "alimentos", "menú", "comida"]
     if any(keyword in message_lower for keyword in creative_food_keywords):
-        template_path = PROMPTS_DIR / "template_ideas_creativas_alimentos.md"
+        template_path = TEMPLATES_DIR / "template_ideas_creativas_alimentos.md"
         if template_path.exists():
             with open(template_path, "r", encoding="utf-8") as f:
                 return f"\n\n## TEMPLATE ESPECÍFICO PARA IDEAS CREATIVAS DE ALIMENTOS:\n\n{f.read()}"
@@ -109,7 +111,7 @@ def detect_consultation_type_and_load_template(message):
     weaning_keywords = ["destete", "reducir tomas", "dejar pecho", "tomas nocturnas", "descansar mejor", 
                        "transición lactancia", "lactancia", "pecho", "mamar", "teta"]
     if any(keyword in message_lower for keyword in weaning_keywords):
-        template_path = PROMPTS_DIR / "template_destete_lactancia.md"
+        template_path = TEMPLATES_DIR / "template_destete_lactancia.md"
         if template_path.exists():
             with open(template_path, "r", encoding="utf-8") as f:
                 return f"\n\n## TEMPLATE ESPECÍFICO PARA DESTETE Y LACTANCIA:\n\n{f.read()}"
@@ -191,22 +193,35 @@ async def get_user_profiles_and_babies(user_id, supabase_client):
 
     return context.strip(), routines_context.strip()
 
-async def get_conversation_history(user_id, supabase_client, limit_per_role=7):
+async def get_conversation_history(user_id, supabase_client, limit_per_role=7, baby_id=None, filter_by_baby=False):
     """
-    Recupera los últimos mensajes del usuario y del asistente para mantener contexto en la conversación.
+        Recupera los últimos mensajes 5 del usuario y del asistente para mantener contexto en la conversación.
+        Filtrandor por el baby_id
     """
-    user_msgs = supabase_client.table("conversations") \
+    user_query = supabase_client.table("conversations") \
         .select("*") \
         .eq("user_id", user_id) \
-        .eq("role", "user") \
+        .eq("role", "user")
+
+    assistant_query = supabase_client.table("conversations") \
+        .select("*") \
+        .eq("user_id", user_id) \
+        .eq("role", "assistant")
+
+    if filter_by_baby:
+        if baby_id is None:
+            user_query = user_query.filter("baby_id", "is", "null")
+            assistant_query = assistant_query.filter("baby_id", "is", "null")
+        else:
+            user_query = user_query.eq("baby_id", baby_id)
+            assistant_query = assistant_query.eq("baby_id", baby_id)
+
+    user_msgs = user_query \
         .order("created_at", desc=True) \
         .limit(limit_per_role) \
         .execute()
 
-    assistant_msgs = supabase_client.table("conversations") \
-        .select("*") \
-        .eq("user_id", user_id) \
-        .eq("role", "assistant") \
+    assistant_msgs = assistant_query \
         .order("created_at", desc=True) \
         .limit(limit_per_role) \
         .execute()
@@ -376,7 +391,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         print("🎵 Búsqueda RAG especializada para vocalizaciones y comportamientos")
 
     # Construir lista de secciones adicionales del prompt
-    prompt_sections = ["style.md"]
+    prompt_sections = ["style_manifest.md"]
     if needs_behavior:
         prompt_sections.append("behavior.md")
     if needs_routine:
@@ -389,7 +404,13 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     # Combinar contextos RAG
     combined_rag_context = f"{rag_context}\n\n--- CONTEXTO ESPECIALIZADO ---\n{specialized_rag}" if specialized_rag else rag_context
     user_context, routines_context = await get_user_profiles_and_babies(user["id"], supabase)
-    history = await get_conversation_history(user["id"], supabase)  # 👈 historial del backend
+    filter_by_baby = "baby_id" in payload.__fields_set__
+    history = await get_conversation_history(
+        user["id"],
+        supabase,
+        baby_id=payload.baby_id,
+        filter_by_baby=filter_by_baby
+    )  # 👈 historial del backend
 
     #print(f"📚 Contexto RAG recuperado:\n{rag_context[:500]}...\n")
     

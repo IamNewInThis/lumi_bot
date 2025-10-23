@@ -5,6 +5,7 @@ from typing import Optional, List, Dict
 class ChatRequest(BaseModel):
     message: str
     profile: Optional[dict] = None
+    baby_id: Optional[str] = None
 
 class KnowledgeConfirmRequest(BaseModel):
     detected_knowledge: List[Dict]
