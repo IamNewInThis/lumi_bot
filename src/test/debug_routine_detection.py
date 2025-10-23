@@ -95,7 +95,7 @@ def debug_routine_detection():
 | 18:00–19:00 | Cena                               |
 | 19:00–20:30 | Baño, cuento y a dormir            |
 
-¿Querés que te lo prepare en versión imprimible con íconos visuales por bloques? ¿O preferís ir ajustando esta primera propuesta según cómo funcione en los próximos días?"""
+¿Quieres que te lo prepare en versión imprimible con íconos visuales por bloques? ¿O preferís ir ajustando esta primera propuesta según cómo funcione en los próximos días?"""
 
     print("\n1️⃣ VERIFICACIÓN DE PATRONES ACTUALES")
     print("-" * 40)

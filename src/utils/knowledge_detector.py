@@ -21,6 +21,7 @@ class KnowledgeDetector:
         "el bb", "la bb"
     }
     
+    # Categoria para guardar conocimiento detectado
     CATEGORIES = {
         "alergias": {
             "subcategories": ["alimentarias", "ambientales", "medicamentos", "cutaneas"],
@@ -83,6 +84,7 @@ class KnowledgeDetector:
         if babies_context:
             babies_names = [baby.get('name', '') for baby in babies_context if baby.get('name')]
 
+        # @TODO: Revisar prompt para optimizar la detección de informacion relevante
         system_prompt = f"""
         Eres un experto en detectar información importante sobre bebés que debería guardarse para personalizar futuras conversaciones.
 

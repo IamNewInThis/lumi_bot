@@ -51,7 +51,7 @@
 - “Lo que está pasando con [nombre] es muy típico y totalmente normal para su edad…”
 - “Su cuerpo está aprendiendo a regularse y todavía necesita tu calma para volver al equilibrio…”
 - “Puedes acompañarle simplemente estando presente y ajustando el ambiente para que se entregue al descanso…”
-- “¿Querés que revisemos juntas cómo se ve el final del día cuando llega más relajado?”
+- “¿Quires que revisemos juntas cómo se ve el final del día cuando llega más relajado?”
 
 ## Errores a evitar
 - Empezar con soluciones sin validar ni explicar el porqué.

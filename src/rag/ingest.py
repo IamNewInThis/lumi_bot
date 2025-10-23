@@ -21,6 +21,7 @@ def get_supabase_config():
 SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY = get_supabase_config()  
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 emb = OpenAIEmbeddings(model="text-embedding-3-small")
+DEFAULT_METADATA_VERSION = os.getenv("KNOWLEDGE_VERSION", "1.0")
 
 vectorstore = SupabaseVectorStore(
     client=supabase,
@@ -38,76 +39,59 @@ def clean_text(text: str) -> str:
     """Limpia saltos de línea múltiples y espacios extra"""
     return " ".join(text.split())
 
-def get_document_category(source_name: str) -> str:
-    """Asigna categoría basada en el nombre del archivo fuente"""
-    source_lower = source_name.lower()
-    
-    # Categorías específicas por archivo
-    if "night_weaning_shepard_ohta" in source_lower:
-        return "Sueño y descanso"
-    elif any(keyword in source_lower for keyword in ["sueño", "dormir", "despertar", "destete_nocturno", "cuna"]):
-        return "Sueño y descanso"
-    elif any(keyword in source_lower for keyword in ["feeding", "come", "alimenta", "lactancia", "toxic"]):
-        return "Alimentación y lactancia"
-    elif any(keyword in source_lower for keyword in ["disciplina", "lagrimas", "cerebro", "emociones", "limites"]):
-        return "Desarrollo emocional"
-    elif any(keyword in source_lower for keyword in ["rutina", "estructura"]):
-        return "Rutinas y estructura"
-    elif any(keyword in source_lower for keyword in ["cuidado", "dental", "corporal", "nasal", "nebulizador"]):
-        return "Cuidados diarios"
-    elif any(keyword in source_lower for keyword in ["libertad", "presencia", "simplicity", "autonomia"]):
-        return "Autonomía y desarrollo"
-    else:
-        return "General"
-
 def chunk(text):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1200, chunk_overlap=150, separators=["\n\n", "\n", " ", ""]
     )
     return splitter.split_text(text)
 
-def ingest_pdf(path, source_name):
+def ingest_pdf(path, source_name, category, version=None):
     raw = pdf_to_text(path)
     chunks = chunk(raw)
     cleaned_chunks = [clean_text(c) for c in chunks]
 
     source_name = source_name.lower().strip()
-    category = get_document_category(source_name)
+    if not category:
+        raise ValueError(f"Debe indicar la categoría para '{source_name}'.")
+    version = version or DEFAULT_METADATA_VERSION
     
-    metas = [{"source": source_name, "type": "pdf", "chunk": i, "category": category} for i, _ in enumerate(chunks)]
-    vectorstore.add_texts(texts=chunks, metadatas=metas)
-    print(f"✅ Ingestado {len(chunks)} chunks de {source_name} - Categoría: {category}")
+    metas = [
+        {
+            "source": source_name,
+            "type": "pdf",
+            "chunk": i,
+            "category": category,
+            "version": version
+        }
+        for i, _ in enumerate(cleaned_chunks)
+    ]
+    vectorstore.add_texts(texts=cleaned_chunks, metadatas=metas)
+    print(f"✅ Ingestado {len(chunks)} chunks de {source_name} - Categoría: {category} | Versión: {version}")
 
 if __name__ == "__main__":
-    # Ingesta documentos 1
-    # ingest_pdf("docs/1/Acompanar_despertares.pdf", "Acompanar_despertares.pdf")
-    # ingest_pdf("docs/1/Destete_nocturno.pdf", "Destete_nocturno.pdf")
-    # ingest_pdf("docs/1/Dormir_en_su_cuna.pdf", "Dormir_en_su_cuna.pdf")
-    # ingest_pdf("docs/1/Rutina_del_bebe.pdf", "Rutina_del_bebe.pdf")
-    # ingest_pdf("docs/1/Sueño_infantil_gonzalo_pin.pdf", "Sueño_infantil_gonzalo_pin.pdf")
+    """
+    Define aquí los documentos que querés ingerir.
+    Para cada uno podés especificar una versión distinta (por ejemplo, "v1", "v2", "2024.10").
+    Si no indicás versión se usará la definida en `DEFAULT_METADATA_VERSION`.
+    """
+    DOCUMENTS_TO_INGEST = [
+        {"path": "docs/2/AE.pdf", "name": "AE.pdf", "category": "Cuidados diarios", "version": "2"},
+        {"path": "docs/2/Respeto_y_cuidados_RP.pdf", "name": "Respeto_y_cuidados_RP.pdf", "category": "Cuidados diarios", "version": "1"},
+        {"path": "docs/3/Juego_y_autonomia_RP.pdf", "name": "Juego_y_autonomia_RP.pdf", "category": "Autonomía y desarrollo integral", "version": "1"},
+        {"path": "docs/3/Movimiento_libre_RP.pdf", "name": "Movimiento_libre_RP.pdf", "category": "Autonomía y desarrollo integral", "version": "1"},
+        {"path": "docs/4/disciplina_sin_lagrimas.pdf", "name": "disciplina_sin_lagrimas.pdf", "category": "Autonomía y desarrollo integral", "version": "2"},
+        {"path": "docs/4/el_cerebro_del_niño.pdf", "name": "el_cerebro_del_niño.pdf", "category": "Autonomía y desarrollo integral", "version": "2"},
+        {"path": "docs/4/el_poder_de_la_presencia.pdf", "name": "el_poder_de_la_presencia.pdf", "category": "Autonomía y desarrollo integral", "version": "2"},
+        {"path": "docs/4/Emociones_y_limites_RP.pdf", "name": "Emociones_y_limites_RP.pdf", "category": "Autonomía y desarrollo integral", "version": "1"},
+        {"path": "docs/4/simplicity_parenting.pdf", "name": "simplicity_parenting.pdf", "category": "Autonomía y desarrollo integral", "version": "2"},
+        {"path": "docs/5/Tips_viajes_R.pdf", "name": "Tips_viajes_R.pdf", "category": "Viajes con niños", "version": "1"},
+        {"path": "docs/5/Viajes_con_niños_MC.pdf", "name": "Viajes_con_niños_MC.pdf", "category": "Viajes con niños", "version": "1"},
+    ]
 
-    # Ingesta documentos 2
-    # ingest_pdf("docs/2/AE.pdf", "AE.pdf")
-    # ingest_pdf("docs/2/Child_of_mine_Feeding.pdf", "Child_of_mine_Feeding.pdf")
-    # ingest_pdf("docs/2/Cuidado_dental.pdf", "Cuidado_dental.pdf")
-    # ingest_pdf("docs/2/Cuidados_corporales.pdf", "Cuidados_corporales.pdf")
-    # ingest_pdf("docs/2/Cuidados_desagradables.pdf", "Cuidados_desagradables.pdf")
-    # ingest_pdf("docs/2/Lavado_nasal.pdf", "Lavado_nasal.pdf")
-    # ingest_pdf("docs/2/Mi_nino_no_me_come.pdf", "Mi_nino_no_me_come.pdf")
-    # ingest_pdf("docs/2/Nebulizador.pdf", "Nebulizador.pdf")
-    # ingest_pdf("docs/2/Toxic_twenty.pdf", "Toxic_twenty.pdf")
-
-    # Ingesta documentos 3
-    ingest_pdf("docs/3/libertad.pdf", "libertad.pdf")
-
-    # Ingesta documentos 4
-    # ingest_pdf("docs/disciplina_sin_lagrimas.pdf", "disciplina_sin_lagrimas.pdf")
-    # ingest_pdf("docs/el_cerebro_del_niño.pdf", "el_cerebro_del_niño.pdf")
-    # ingest_pdf("docs/el_poder_de_la_presencia.pdf", "el_poder_de_la_presencia.pdf")
-    # ingest_pdf("docs/emociones.pdf", "emociones.pdf")
-    # ingest_pdf("docs/simplicity_parenting.pdf", "simplicity_parenting.pdf")
-    ingest_pdf("docs/4/LIMITES.pdf", "LIMITES.pdf")
-
-    # Documento específico para categorización de Sueño y descanso
-    # ingest_pdf("docs/night_weaning_shepard_ohta.pdf", "night_weaning_shepard_ohta.pdf")
-
+    for doc in DOCUMENTS_TO_INGEST:
+        ingest_pdf(
+            doc["path"],
+            doc["name"],
+            category=doc["category"],
+            version=doc.get("version"),
+        )

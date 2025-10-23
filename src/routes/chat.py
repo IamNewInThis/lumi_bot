@@ -133,8 +133,10 @@ def format_llm_output(text):
     
     return text
 
-
 async def get_user_profiles_and_babies(user_id, supabase_client):
+    """
+        Recupera perfiles y bebés del usuario y formatea el contexto.
+    """
     profiles = supabase_client.table("profiles").select("*").eq("id", user_id).execute()
     babies = supabase_client.table("babies").select("*").eq("user_id", user_id).execute()
 
@@ -372,6 +374,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     rag_context = await get_rag_context(payload.message)
     
     # Búsqueda RAG especializada y módulos dinámicos
+    # @TODO: Mejorar especialización para documentos específicos
     specialized_rag = ""
     message_lower = payload.message.lower()
 
@@ -635,7 +638,8 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     try:
         print(f"� Analizando mensaje para conocimiento: {payload.message}")
         
-        # Obtener información de bebés para el contexto
+        # Obtener información del bb
+        # TODO: Esta dectectando todos los bb
         babies = supabase.table("babies").select("*").eq("user_id", user_id).execute()
         babies_context = babies.data or []
         print(f"👶 Bebés encontrados: {len(babies_context)}")

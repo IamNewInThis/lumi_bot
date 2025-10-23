@@ -33,24 +33,26 @@ async def get_rag_context(query: str, k: int = 20, top_sources: int = 3) -> str:
         'rabietas': ['disciplina_sin_lagrimas.pdf'],
         'conflictos': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf'],
         'hermanos': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf'],
-        'celos': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf'],
-        'peleas': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf'],
-        'territorialidad': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf'],
+        'celos': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf', 'limites.pdf'],
+        'peleas': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf', 'limites.pdf'],
+        'territorialidad': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf', 'limites.pdf'],
         'compartir': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf'],
         'rivalidad': ['disciplina_sin_lagrimas.pdf', 'emociones.pdf', 'el_cerebro_del_nino.pdf'],
         'juguetes': ['el_cerebro_del_nino.pdf', 'emociones.pdf'],
         'sobreestimulacion': ['simplicity_parenting.pdf'],
-        'actividades': ['simplicity_parenting.pdf', 'rutina_del_bebe.pdf'],
-        'exceso': ['simplicity_parenting.pdf'],
-        'rutina': ['rutina_del_bebe.pdf'],
+        'actividades': ['simplicity_parenting.pdf', 'rutina_del_bebe.pdf', 'el_cerebro_del_nino.pdf'],
+        'exceso': ['simplicity_parenting.pdf', 'limites.pdf', 'el_cerebro_del_nino.pdf'],
+        'rutina': ['rutina_del_bebe.pdf', 'simplicity_parenting.pdf'],
         'sueño': ['acompanar_despertares.pdf','rutina_del_bebe.pdf', 'destete_nocturno.pdf', 'dormir_en_su_cuna.pdf'],
-        'alimentación': ['child_of_mine_feeding.pdf'],
-        'comida': ['child_of_mine_feeding.pdf'],
-        'emociones': ['emociones.pdf'],
-        'crianza respetuosa': ['emociones.pdf', 'libertad.pdf'],
+        'alimentación': ['child_of_mine_feeding.pdf', 'el_cerebro_del_nino.pdf'],
+        'comida': ['child_of_mine_feeding.pdf', 'el_cerebro_del_nino.pdf'],
+        'emociones': ['emociones.pdf', 'el_cerebro_del_nino.pdf'],
+        'crianza respetuosa': ['emociones.pdf', 'libertad.pdf', 'simplicity_parenting.pdf'],
         'respetuosa': ['emociones.pdf', 'libertad.pdf'],
     }
     
+    # TODO: Agregar seccion de categorias para facilitar la busqueda de documentos
+
     query_lower = query.lower()
     for keyword, sources in keyword_mapping.items():
         if keyword in query_lower:
