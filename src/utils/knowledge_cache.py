@@ -62,9 +62,11 @@ class KnowledgeConfirmationCache:
         
         # Respuestas positivas
         positive_responses = [
-            "si", "sí", "yes", "ok", "okay", "vale", "claro", "perfecto",
-            "confirmo", "acepto", "por favor", "dale", "sip", "sep",
-            "está bien", "esta bien", "bueno", "correcto", "exacto",
+            "si", "sí", "sim", "yes", "ok", "okay", "vale", "claro", "perfeito",
+            "perfecto", "confirmo", "acepto", "aceito", "por favor", "dale",
+            "sip", "sep", "sure", "yup", "yep", "alright", "pode ser",
+            "tudo bem", "com certeza", "isso", "está bem", "esta bien",
+            "esta bom", "está bom", "bueno", "correcto", "exacto",
             "guardalo", "guárdalo", "guardala", "guárdala",
             "👍", "✅", "✓",
             "claro que sí", "hazlo", "hazlo por favor", "por favor"
@@ -74,6 +76,8 @@ class KnowledgeConfirmationCache:
         negative_responses = [
             "no", "nah", "nope", "nunca", "jamas", "jamás", "para nada",
             "no gracias", "no quiero", "mejor no", "descarta", "cancelar",
+            "não", "nao", "negativo", "melhor não", "prefiro que não",
+            "don't", "do not", "please no", "better not",
             "👎", "❌", "✗"
         ]
         

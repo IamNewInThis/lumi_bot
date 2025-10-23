@@ -49,10 +49,9 @@ async def get_rag_context(query: str, k: int = 20, top_sources: int = 3) -> str:
         'emociones': ['emociones.pdf', 'el_cerebro_del_nino.pdf'],
         'crianza respetuosa': ['emociones.pdf', 'libertad.pdf', 'simplicity_parenting.pdf'],
         'respetuosa': ['emociones.pdf', 'libertad.pdf'],
+        'viajes': ['viajes_con_niños_mc.pdf','tips_viajes_r' ],
     }
     
-    # TODO: Agregar seccion de categorias para facilitar la busqueda de documentos
-
     query_lower = query.lower()
     for keyword, sources in keyword_mapping.items():
         if keyword in query_lower:
