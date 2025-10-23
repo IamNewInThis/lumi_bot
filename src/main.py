@@ -11,7 +11,6 @@ load_dotenv(dotenv_path=env_path, override=True)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.routes import chat
-from src.knowledge_base import initialize_knowledge_service
 
 app = FastAPI(title="Sol Local Chat Proxy")
 
@@ -23,19 +22,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Inicializar el sistema de base de conocimiento estructurada
-@app.on_event("startup")
-async def startup_event():
-    knowledge_base_path = Path(__file__).parent / "knowledge_base"
-    style_manifest_path = Path(__file__).parent / "prompts" / "style_manifest.md"
-    
-    initialize_knowledge_service(
-        str(knowledge_base_path), 
-        str(style_manifest_path)
-    )
-    print("✅ Sistema de Base de Conocimiento Estructurada inicializado")
+@app.get("/")
+async def root():
+    return {"message": "Lumi LLM API is running in version: 1.1.0."}
 
+print(f"Usando lumi_bot versión 1.1.0")
 # Montar rutas
 app.include_router(chat.router)
 
-# Puedes agregar otras rutas más adelante

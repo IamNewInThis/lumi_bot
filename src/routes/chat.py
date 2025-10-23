@@ -1,6 +1,7 @@
 # src/routes/chat.py
 import os
 import httpx
+import unicodedata
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +17,6 @@ from ..utils.knowledge_cache import confirmation_cache
 from ..utils.routine_detector import RoutineDetector
 from ..services.routine_service import RoutineService
 from ..utils.routine_cache import routine_confirmation_cache
-import unicodedata
 
 router = APIRouter()
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
