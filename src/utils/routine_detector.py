@@ -40,8 +40,17 @@ class RoutineDetector:
             "ciências", "ciencias", "arte", "segunda", "quarta", "sexta",
             "tarde", "manhã", "manha", "rotina diária", "rotina diaria"
         ]
-        
+
         message_lower = message.lower()
+
+        diaper_tokens = [
+            "pañal", "panal", "diaper", "fralda",
+            "cambiar pañal", "cambiar panal", "cambio de pañal",
+            "cambiarle el pañal", "cambiarle el panal"
+        ]
+        if any(token in message_lower for token in diaper_tokens):
+            print("🔁 Mensaje identificado como cambio de pañal. Saltando detección de rutinas.")
+            return None
         
         # Verificar si hay palabras clave relacionadas con rutinas
         has_routine_keywords = any(keyword in message_lower for keyword in routine_keywords)
@@ -143,8 +152,8 @@ Si NO hay información clara de rutina, responde: {{"has_routine_info": false}}
                 print("❌ No hay OPENAI_API_KEY configurada")
                 return None
                 
-            print(f"🤖 Enviando prompt a OpenAI...")
-            print(f"🤖 Prompt: {prompt[:500]}...")
+            # print(f"🤖 Enviando prompt a OpenAI...")
+            # print(f"🤖 Prompt: {prompt[:500]}...")
                 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(

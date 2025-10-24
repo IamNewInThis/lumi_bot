@@ -71,7 +71,7 @@ def ingest_pdf(path, source_name, category, version=None):
 if __name__ == "__main__":
     """
     Define aquí los documentos que querés ingerir.
-    Para cada uno podés especificar una versión distinta (por ejemplo, "v1", "v2", "2024.10").
+    Para cada uno puedes especificar una versión distinta (por ejemplo, "v1", "v2", "2024.10").
     Si no indicás versión se usará la definida en `DEFAULT_METADATA_VERSION`.
     """
     DOCUMENTS_TO_INGEST = [
