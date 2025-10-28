@@ -503,6 +503,8 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     
     # Agregar mensaje actual
     messages.append({"role": "user", "content": payload.message})
+    # Prompt completo para debug y analisis
+    print("🧩 Prompt completo enviado a OpenAI:", messages)
 
     body = {
         "model": OPENAI_MODEL,
