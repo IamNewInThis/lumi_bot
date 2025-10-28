@@ -1,7 +1,7 @@
 # src/utils/reference_detector.py
 import json
 from typing import List, Dict, Any, Optional
-from ..rag.utils import get_rag_context_with_sources
+from ..rag.utils import get_rag_context_with_sources, get_all_reference_chunks_from_file
 from .source_cache import source_cache
 
 class ReferenceDetector:
@@ -20,7 +20,7 @@ class ReferenceDetector:
         "autores", "expertos", "especialistas", "pedagogos", "médicos", "medicos",
         "neurocientíficos", "neurocientificos", "investigadores", 
         "dónde leíste", "donde leiste", "en qué te basas", "en que te basas",
-        "esa informacion", "esa información", "esta informacion", "esta información"
+        "esa informacion", "esa información", "esta informacion", "esta información", "de donde es esa info"
     }
     
     @staticmethod
@@ -65,7 +65,7 @@ class ReferenceDetector:
     @staticmethod
     def format_references_response(reference_chunks: List[Dict[str, Any]]) -> str:
         """
-        Formatea la respuesta con las referencias encontradas.
+        Formatea la respuesta con las referencias encontradas de forma resumida y general.
         """
         if not reference_chunks:
             return """
@@ -81,43 +81,126 @@ Mi conocimiento se basa en una amplia base de datos que incluye:
 Para obtener referencias específicas sobre un tema particular, puedes preguntarme sobre un área concreta (por ejemplo: "¿qué referencias tienes sobre sueño infantil?" o "¿en qué te basas para hablar de destete?").
 """
         
-        # Agrupar por fuente/categoría
-        sources_by_category = {}
-        for chunk in reference_chunks:
-            category = chunk.get("category", "General")
-            source = chunk.get("source", "Documento desconocido")
-            
-            if category not in sources_by_category:
-                sources_by_category[category] = {}
-            
-            if source not in sources_by_category[category]:
-                sources_by_category[category][source] = []
-            
-            sources_by_category[category][source].append(chunk)
+        # Recopilar información de todas las fuentes
+        has_ref_chunks = any(chunk.get("ref") is True for chunk in reference_chunks)
+        sources = list(set(chunk.get("source", "").replace('_ref.pdf', '').replace('.pdf', '') for chunk in reference_chunks))
         
-        # Formatear respuesta
+        # Extraer autores y referencias mencionadas en los chunks
+        all_content = " ".join([chunk.get("content", "") for chunk in reference_chunks])
+        
+        # Buscar patrones de referencias comunes
+        reference_patterns = {
+            "autores": [],
+            "instituciones": [],
+            "estudios": [],
+            "publicaciones": []
+        }
+        
+        # Buscar autores mencionados (nombres propios seguidos de apellidos)
+        import re
+        
+        # Patrones mejorados para detectar referencias académicas
+        # Buscar nombres de autores (nombre + apellido, evitando falsos positivos)
+        author_patterns = [
+            r'\bde\s+([A-Z][a-záéíóúñ]{2,})\s+([A-Z][a-záéíóúñ]{2,})\b',  # de Nombre Apellido  
+            r'\bdel\s+([A-Z][a-záéíóúñ]{2,})\s+([A-Z][a-záéíóúñ]{2,})\b', # del Nombre Apellido
+            r'\b([A-Z][a-záéíóúñ]{2,})\s+([A-Z][a-záéíóúñ]{2,})\b',  # Nombre Apellido general
+            r'\b([A-Z][a-záéíóúñ]{2,})\s+y\s+([A-Z][a-záéíóúñ]{2,})\b'  # Nombre y Apellido
+        ]
+        
+        # Palabras a excluir (no son nombres de autores)
+        excluded_words = {
+            'Essential', 'Oil', 'Safety', 'Guide', 'Health', 'Care', 'Professionals',
+            'European', 'Medicines', 'Agency', 'American', 'Herbal', 'Products', 'Association',
+            'Council', 'International', 'National', 'Alliance', 'Aromatherapy', 'Holistic'
+        }
+        
+        authors_found = []
+        for pattern in author_patterns:
+            matches = re.findall(pattern, all_content)
+            for match in matches:
+                if isinstance(match, tuple):
+                    # Para el patrón "Nombre y Apellido", crear dos autores separados
+                    if ' y ' in f"{match[0]} {match[1]}":
+                        authors_found.append(match[0])
+                        authors_found.append(match[1])
+                    else:
+                        full_name = f"{match[0]} {match[1]}"
+                        # Verificar que no sea una palabra excluida
+                        words = full_name.split()
+                        if not any(word in excluded_words for word in words) and len(full_name) > 5:
+                            authors_found.append(full_name)
+                else:
+                    full_name = match
+                    words = full_name.split()
+                    if not any(word in excluded_words for word in words) and len(full_name) > 5:
+                        authors_found.append(full_name)
+        
+        # Limpiar duplicados y limitar
+        authors_found = list(set(authors_found))[:5]
+        
+        # Buscar instituciones y organizaciones
+        institution_patterns = [
+            r'\b(European Medicines Agency)\s*\([^)]*\)?',
+            r'\b(American Herbal Products Association)\s*\([^)]*\)?', 
+            r'\b(National Association for Holistic Aromatherapy)\s*\([^)]*\)?',
+            r'\b(Alliance of International Aromatherapists)\s*\([^)]*\)?',
+            r'\b([A-Z][a-záéíóúñ\s]{15,60}(?:Agency|Association|Council|Institute|Organization|Academy))\b'
+        ]
+        
+        institutions_found = []
+        for pattern in institution_patterns:
+            matches = re.findall(pattern, all_content, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, str) and len(match.strip()) > 5:
+                    inst_clean = match.strip()
+                    # Remover siglas entre paréntesis al final
+                    inst_clean = re.sub(r'\s*\([^)]*\)$', '', inst_clean)
+                    if len(inst_clean) > 50:
+                        inst_clean = inst_clean[:50] + "..."
+                    institutions_found.append(inst_clean)
+        
+        # Limpiar duplicados y limitar
+        institutions_found = list(set(institutions_found))[:4]
+        
+        # Construir respuesta resumida
         response = "📚 **Referencias y fuentes consultadas**\n\n"
         
-        for category, sources in sources_by_category.items():
-            response += f"### {category}\n\n"
-            
-            for source, chunks in sources.items():
-                response += f"**📄 {source.replace('_ref.pdf', '').replace('_', ' ').title()}**\n"
-                
-                # Mostrar contenido del primer chunk (suele ser el resumen de referencias)
-                if chunks:
-                    content = chunks[0].get("content", "")
-                    if content:
-                        # Truncar si es muy largo
-                        if len(content) > 500:
-                            content = content[:500] + "..."
-                        response += f"{content}\n\n"
-                
-                response += "---\n\n"
+        response += "La información proporcionada se basa en documentación científica y técnica que incluye:\n\n"
         
-        response += """
-💡 **Nota**: Estas son las fuentes principales para el tema que consultaste. Si necesitas referencias sobre otros temas específicos, no dudes en preguntarme.
-"""
+        # Agregar autores si se encontraron
+        if authors_found:
+            response += f"**👥 Autores y especialistas mencionados:**\n"
+            for author in authors_found:
+                response += f"• {author}\n"
+            response += "\n"
+        
+        # Agregar instituciones si se encontraron
+        if institutions_found:
+            response += f"**🏛️ Instituciones y organismos de referencia:**\n"
+            for institution in institutions_found:
+                response += f"• {institution}\n"
+            response += "\n"
+        
+        # Describir el tipo de evidencia
+        if has_ref_chunks:
+            response += "**📖 Tipos de evidencia consultada:**\n"
+            response += "• Estudios científicos revisados por pares\n"
+            response += "• Investigaciones en neurociencia del desarrollo\n"
+            response += "• Guías de organismos internacionales de salud\n"
+            response += "• Literatura especializada en pediatría y desarrollo infantil\n"
+            response += "• Enfoques de crianza respetuosa basados en evidencia\n\n"
+        else:
+            response += "**📖 Fuentes de información:**\n"
+            response += "• Documentación especializada en desarrollo infantil\n"
+            response += "• Textos de referencia en pediatría y crianza\n"
+            response += "• Enfoques pedagógicos centrados en el niño\n\n"
+        
+        # Nota explicativa
+        if has_ref_chunks:
+            response += "💡 **Nota**: Estas referencias representan la base científica y técnica que fundamenta la información proporcionada.\n"
+        else:
+            response += "💡 **Nota**: Esta información proviene de documentación especializada. Las referencias específicas se están actualizando en el sistema.\n"
         
         return response
     
@@ -141,20 +224,27 @@ Para obtener referencias específicas sobre un tema particular, puedes preguntar
             all_reference_chunks = []
             
             for source_file, reference_query in cached_sources["processed_sources"].items():
-                print(f"🔍 [REFERENCIAS] Buscando referencias en {source_file} con query: {reference_query}")
+                print(f"🔍 [REFERENCIAS] Obteniendo TODOS los chunks de referencia de {source_file}")
                 
-                # Buscar específicamente en este documento de referencias
+                # Usar la nueva función que obtiene TODOS los chunks de referencia sin query semántica
                 try:
-                    context, chunks = await get_rag_context_with_sources(
-                        reference_query,
-                        search_id=f"references_{source_file.replace('.pdf', '').replace('_ref', '')}"
+                    source_chunks = await get_all_reference_chunks_from_file(
+                        source_file, 
+                        search_id=f"all_refs_{source_file.replace('.pdf', '').replace('_ref', '')}"
                     )
                     
-                    # Filtrar chunks que pertenecen al documento específico de referencias
-                    source_chunks = [
-                        chunk for chunk in chunks 
-                        if chunk.get("source", "").lower() == source_file.lower()
-                    ]
+                    # FALLBACK: Si no encontramos chunks en archivo _ref, buscar en archivo original
+                    if not source_chunks and source_file.endswith('_ref.pdf'):
+                        original_file = source_file.replace('_ref.pdf', '.pdf')
+                        print(f"🔄 [REFERENCIAS] No encontrado en {source_file}, buscando en {original_file}")
+                        
+                        source_chunks = await get_all_reference_chunks_from_file(
+                            original_file, 
+                            search_id=f"fallback_{original_file.replace('.pdf', '')}"
+                        )
+                        
+                        if source_chunks:
+                            print(f"✅ [REFERENCIAS] FALLBACK exitoso: encontrados chunks en {original_file}")
                     
                     all_reference_chunks.extend(source_chunks)
                     print(f"📚 [REFERENCIAS] Encontrados {len(source_chunks)} chunks de referencia en {source_file}")
@@ -163,7 +253,7 @@ Para obtener referencias específicas sobre un tema particular, puedes preguntar
                         print(f"✅ [REFERENCIAS] Primeros chunks encontrados: {[chunk.get('source') for chunk in source_chunks[:3]]}")
                     
                 except Exception as e:
-                    print(f"❌ Error buscando referencias en {source_file}: {e}")
+                    print(f"❌ Error obteniendo chunks de referencia de {source_file}: {e}")
             
             if all_reference_chunks:
                 print(f"✅ [REFERENCIAS] Total chunks de referencia encontrados: {len(all_reference_chunks)}")

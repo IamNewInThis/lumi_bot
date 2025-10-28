@@ -97,6 +97,67 @@ def get_rag_context_simple(query: str, k: int = 20, top_sources: int = 3, search
     context, sources = get_rag_context(query, k, top_sources, search_id)
     return context
 
+async def get_all_reference_chunks_from_file(source_file: str, search_id: str = "references") -> List[Dict[str, Any]]:
+    """
+    Obtiene chunks relevantes de un archivo específico para consultas de referencias.
+    Prioriza chunks con ref=true, pero si no los encuentra, devuelve chunks relevantes del archivo.
+    
+    Args:
+        source_file: Nombre del archivo (ej: 'ae_ref.pdf' o 'ae.pdf')
+        search_id: ID para logging
+    
+    Returns:
+        List[Dict]: Lista de chunks con metadata completa
+    """
+    try:
+        # Buscar todos los chunks de este archivo específico usando un filtro amplio
+        # Usamos una query muy genérica para obtener todos los chunks del archivo
+        all_chunks = vs.similarity_search(
+            "información contenido documento", 
+            k=1000,  # Número alto para obtener todos los chunks
+            filter={"source": source_file}
+        )
+        
+        print(f"🔍 [{search_id.upper()}] Encontrados {len(all_chunks)} chunks totales en {source_file}")
+        
+        if not all_chunks:
+            print(f"❌ [{search_id.upper()}] No se encontraron chunks en {source_file}")
+            return []
+        
+        # Convertir a formato dict
+        all_chunks_data = []
+        for doc in all_chunks:
+            chunk_data = {
+                "content": doc.page_content,
+                "metadata": doc.metadata,
+                "source": doc.metadata.get("source", "unknown"),
+                "ref": doc.metadata.get("ref", False),
+                "type": doc.metadata.get("type", "unknown"),
+                "chunk": doc.metadata.get("chunk", 0),
+                "version": doc.metadata.get("version", 1),
+                "category": doc.metadata.get("category", "General")
+            }
+            all_chunks_data.append(chunk_data)
+        
+        # Filtrar chunks que tienen ref=true (prioridad)
+        reference_chunks = [chunk for chunk in all_chunks_data if chunk.get("ref") is True]
+        
+        if reference_chunks:
+            print(f"✅ [{search_id.upper()}] Encontrados {len(reference_chunks)} chunks con ref=true en {source_file}")
+            return reference_chunks
+        else:
+            # Si no hay chunks con ref=true, devolver los primeros chunks del archivo como fallback
+            print(f"⚠️ [{search_id.upper()}] No hay chunks con ref=true en {source_file}")
+            print(f"🔄 [{search_id.upper()}] Usando chunks generales como fallback (primeros 3)")
+            
+            # Devolver máximo 3 chunks como muestra del contenido
+            fallback_chunks = all_chunks_data[:3]
+            return fallback_chunks
+        
+    except Exception as e:
+        print(f"❌ Error obteniendo chunks de {source_file}: {e}")
+        return []
+
 async def get_rag_context_with_sources(query: str, k: int = 20, top_sources: int = 3, search_id: str = "references") -> Tuple[str, List[Dict[str, Any]]]:
     """
     Versión especial de get_rag_context que devuelve tanto el contexto como los chunks con metadata.
