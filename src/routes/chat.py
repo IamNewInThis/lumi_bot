@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List
 from ..models.chat import ChatRequest, KnowledgeConfirmRequest
 from ..auth import get_current_user
-from src.rag.utils import get_rag_context
+from src.rag.utils import get_rag_context, get_rag_context_simple
 from src.utils.date_utils import calcular_edad, calcular_meses
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
@@ -17,6 +17,8 @@ from ..utils.knowledge_cache import confirmation_cache
 from ..utils.routine_detector import RoutineDetector
 from ..services.routine_service import RoutineService
 from ..utils.routine_cache import routine_confirmation_cache
+from ..utils.reference_detector import ReferenceDetector
+from ..utils.source_cache import source_cache
 
 router = APIRouter()
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -56,7 +58,7 @@ PARTNER_KEYWORDS = {
 }
 
 BEHAVIOR_KEYWORDS = {
-    "llora", "llanto", "llorando", "ruido", "grita", "alega", "canta", "om",
+    "llora", "llanto", "llorando", "ruido", "grita", "alega", "canta",
     "gruñe", "hace sonido", "vocaliza", "emite", "sonido raro", "llanto diferente",
     "se queja", "tararea", "canturrea", "murmura", "susurra"
 }
@@ -81,31 +83,6 @@ GREETING_PHRASES = {
     "hola buenas noches"
 }
 
-EXAMPLE_MATCHERS = [
-    {
-        "file": "play_interest_loss.md",
-        "any_groups": [
-            ["juguet", "juegos", "jugar", "juegues"],
-            [
-                "no le gusta", "no se entretiene", "no los usa", "los deja",
-                "no los quiere", "aburrido", "pierde interes", "pierde interés",
-                "no se interesa", "ya no se interesa"
-            ]
-        ]
-    },
-    {
-        "file": "diaper_resistance.md",
-        "any_groups": [
-            ["pañal", "panal", "diaper", "fralda"],
-            [
-                "no se deja", "no quiere", "se resiste", "difícil", "dificil",
-                "problema", "no puedo", "no me deja", "no la puedo cambiar",
-                "entre los dos", "with my partner"
-            ]
-        ]
-    }
-]
-
 def normalize_for_greeting(text: str) -> str:
     text = unicodedata.normalize("NFD", text.lower())
     text = "".join(
@@ -120,44 +97,10 @@ def is_simple_greeting(message: str) -> bool:
     normalized = normalize_for_greeting(message)
     return normalized in GREETING_PHRASES
 
-def detect_examples(message: str) -> List[str]:
-    """
-    Devuelve una lista de archivos de ejemplos relevantes para el mensaje.
-    """
-    normalized = normalize_for_greeting(message)
-    matched = []
-
-    for matcher in EXAMPLE_MATCHERS:
-        any_groups = matcher.get("any_groups")
-        if any_groups:
-            group_matches = all(
-                any(token in normalized for token in group)
-                for group in any_groups
-            )
-            if group_matches:
-                matched.append(matcher["file"])
-        else:
-            match_all = all(token in normalized for token in matcher.get("match_all", []))
-            match_any_tokens = matcher.get("match_any", [])
-            match_any = any(token in normalized for token in match_any_tokens) if match_any_tokens else True
-
-            if match_all and match_any:
-                matched.append(matcher["file"])
-
-    # quitar duplicados conservando orden
-    seen = set()
-    unique = []
-    for file in matched:
-        if file not in seen:
-            seen.add(file)
-            unique.append(file)
-
-    return unique
-
-
 def load_instruction_dataset():
     """
-    Carga el dataset de instrucciones Lumi (lumi_instruction_dataset_v1)
+    Carga el dataset de ejemplos, estos ejemplos fueron tomados desde el GPT de Sol
+    Para darle un mejor contexto al modelo de como debe responder.
     ubicado en prompts/examples y lo incluye como guía semántica base.
     """
     candidate_paths = [
@@ -172,26 +115,6 @@ def load_instruction_dataset():
             header = "## DATASET DE INSTRUCCIONES LUMI (v1)\nUsar como guía semántica general para tono, estructura y progresión de respuesta.\n\n"
             return header + content
     return ""
-
-def load_examples(example_files: List[str]) -> str:
-    """
-    Carga el contenido de ejemplos de referencia para guiar la respuesta.
-    """
-    contents = []
-
-    for filename in example_files:
-        example_path = EXAMPLES_DIR / filename
-        if example_path.exists():
-            with open(example_path, "r", encoding="utf-8") as example_file:
-                contents.append(example_file.read().strip())
-        else:
-            print(f"⚠️ Ejemplo no encontrado: {example_path}")
-
-    if not contents:
-        return ""
-
-    header = "## EJEMPLOS DE RESPUESTA (Referencia para adaptar, no copiar literal)\n"
-    return header + "\n\n".join(contents)
 
 def load_system_prompt(section_files=None):
     """
@@ -248,13 +171,16 @@ def detect_consultation_type_and_load_template(message):
     """
     message_lower = message.lower()
     
-    # Palabras clave para rutinas (debe ir PRIMERO para tener prioridad)
-    routine_keywords = ["rutina", "organizar", "horarios", "estructura", "día completo", "cronograma"]
+    # Palabras clave para rutinas
+    routine_keywords = ["rutina", "organizar", "horarios", "estructura", "día completo"]
     if any(keyword in message_lower for keyword in routine_keywords):
-        template_path = TEMPLATES_DIR / "template_rutina_mejorada.md"
+        template_path = TEMPLATES_DIR / "template_rutinas.md"
         if template_path.exists():
+            print(f"🚀 Cargando template de rutinas desde: {template_path}")
             with open(template_path, "r", encoding="utf-8") as f:
                 return f"\n\n## TEMPLATE ESPECÍFICO PARA RUTINAS MEJORADAS:\n\n{f.read()}"
+        else:
+            print(f"⚠️ Template de rutinas no encontrado: {template_path}")
     
     # Palabras clave para ideas creativas de alimentos
     creative_food_keywords = ["ideas creativas", "presentar", "verduras", "alimentos", "menú", "comida"]
@@ -280,7 +206,15 @@ def detect_consultation_type_and_load_template(message):
         if template_path.exists():
             with open(template_path, "r", encoding="utf-8") as f:
                 return f"\n\n## TEMPLATE ESPECÍFICO PARA DESTETE Y LACTANCIA:\n\n{f.read()}"
-    
+            
+    # Palabras claves para detectar solicitud de referencias de las respuesta
+    references_keywords = ["fuentes", "referencias", "bibliografía", "origen de la información", "de dónde sacaste", "dónde obtuviste", "qué fuentes", "basado en qué"]
+    if any(keyword in message_lower for keyword in references_keywords):
+        template_path = TEMPLATES_DIR / "template_referencias.md"
+        if template_path.exists():
+            with open(template_path, "r", encoding="utf-8") as f:
+                return f"\n\n## TEMPLATE ESPECÍFICO PARA REFERENCIAS:\n\n{f.read()}"
+
     return ""
 
 def format_llm_output(text):
@@ -390,42 +324,54 @@ async def get_user_profiles_and_babies(user_id, supabase_client, baby_id=None, b
 
     return context.strip(), routines_context.strip()
 
-async def get_conversation_history(user_id, supabase_client, limit_per_role=4, baby_id=None, filter_by_baby=False):
+async def get_conversation_history(user_id, supabase_client, limit_per_role=4, baby_id=None, filter_by_baby=False, user_only=False):
     """
-        Recupera los últimos mensajes 4 del usuario y del asistente para mantener contexto en la conversación.
-        Filtrandor por el baby_id
+        Recupera los últimos mensajes del usuario y del asistente para mantener contexto en la conversación.
+        Filtrando por el baby_id
+        
+        Args:
+            user_only: Si es True, solo incluye mensajes del usuario para evitar copiar formatos de respuestas anteriores
     """
     user_query = supabase_client.table("conversations") \
         .select("*") \
         .eq("user_id", user_id) \
         .eq("role", "user")
 
-    assistant_query = supabase_client.table("conversations") \
-        .select("*") \
-        .eq("user_id", user_id) \
-        .eq("role", "assistant")
+    if not user_only:
+        assistant_query = supabase_client.table("conversations") \
+            .select("*") \
+            .eq("user_id", user_id) \
+            .eq("role", "assistant")
 
     if filter_by_baby:
         if baby_id is None:
             user_query = user_query.filter("baby_id", "is", "null")
-            assistant_query = assistant_query.filter("baby_id", "is", "null")
+            if not user_only:
+                assistant_query = assistant_query.filter("baby_id", "is", "null")
         else:
             user_query = user_query.eq("baby_id", baby_id)
-            assistant_query = assistant_query.eq("baby_id", baby_id)
+            if not user_only:
+                assistant_query = assistant_query.eq("baby_id", baby_id)
 
     user_msgs = user_query \
         .order("created_at", desc=True) \
-        .limit(limit_per_role) \
+        .limit(limit_per_role if not user_only else limit_per_role * 2) \
         .execute()
 
-    assistant_msgs = assistant_query \
-        .order("created_at", desc=True) \
-        .limit(limit_per_role) \
-        .execute()
+    if user_only:
+        # Solo mensajes del usuario para evitar copiar formatos
+        history_sorted = sorted(user_msgs.data or [], key=lambda x: x["created_at"])
+        print(f"📝 [DEBUG] Solo mensajes de usuario en historial: {len(history_sorted)}")
+    else:
+        assistant_msgs = assistant_query \
+            .order("created_at", desc=True) \
+            .limit(limit_per_role) \
+            .execute()
 
-    # Combinar y ordenar cronológicamente
-    history = (user_msgs.data or []) + (assistant_msgs.data or [])
-    history_sorted = sorted(history, key=lambda x: x["created_at"])
+        # Combinar y ordenar cronológicamente
+        history = (user_msgs.data or []) + (assistant_msgs.data or [])
+        history_sorted = sorted(history, key=lambda x: x["created_at"])
+        print(f"📝 [DEBUG] Historial completo: {len(history_sorted)} mensajes")
 
     # Convertir al formato que espera OpenAI
     formatted_history = [
@@ -585,26 +531,61 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     needs_night_weaning = needs_partner = needs_behavior = needs_routine = False
 
     if not simple_greeting:
-        rag_context = await get_rag_context(payload.message)
+        print(f"📝 Mensaje del usuario: '{payload.message[:100]}...'")
+        
+        # Verificar si es una consulta de referencias ANTES de hacer búsqueda RAG
+        is_reference_query = ReferenceDetector.detect_reference_query(payload.message)
+        print(f"🔍 [DEBUG] ¿Es consulta de referencias? {is_reference_query}")
+        
+        if is_reference_query:
+            print(f"🔍 [REFERENCIAS] Detectada consulta de referencias - NO se guardará en cache")
+            # Para consultas de referencias, usar búsqueda simple sin guardar en cache
+            rag_context = get_rag_context_simple(payload.message, search_id="reference_query")
+            consulted_sources = []  # No guardar fuentes para consultas de referencias
+        else:
+            print(f"✅ [CACHE] Consulta normal - SÍ se guardará en cache")
+            # Para consultas normales, usar búsqueda completa y guardar en cache
+            rag_context, consulted_sources = get_rag_context(payload.message, search_id="user_query")
+            
+            # Guardar las fuentes consultadas en el cache para futuras consultas de referencias
+            source_cache.store_sources(user_id, consulted_sources, payload.message, "user_query")
+    else:
+        is_reference_query = False
+        print(f"👋 [DEBUG] Es saludo simple - no se procesa RAG ni cache")
         
         needs_night_weaning = any(keyword in message_lower for keyword in NIGHT_WEANING_KEYWORDS)
         needs_partner = any(keyword in message_lower for keyword in PARTNER_KEYWORDS)
         needs_behavior = any(keyword in message_lower for keyword in BEHAVIOR_KEYWORDS)
         needs_routine = any(keyword in message_lower for keyword in ROUTINE_KEYWORDS)
 
+        # Debug detallado de keywords
+        if needs_behavior:
+            detected_behavior_keywords = [kw for kw in BEHAVIOR_KEYWORDS if kw in message_lower]
+            print(f"🎭 BEHAVIOR keywords detectadas: {detected_behavior_keywords}")
+        
+        if needs_routine:
+            detected_routine_keywords = [kw for kw in ROUTINE_KEYWORDS if kw in message_lower]
+            print(f"📅 ROUTINE keywords detectadas: {detected_routine_keywords}")
+
+        print(f"🔍 Keywords detectadas: night_weaning={needs_night_weaning}, partner={needs_partner}, behavior={needs_behavior}, routine={needs_routine}")
+
         if is_diaper_context:
             needs_partner = False
             needs_routine = False
+            print("🚼 Contexto de pañales detectado - deshabilitando partner/routine")
 
-        if needs_night_weaning:
-            specialized_rag = await get_rag_context("desmame nocturno etapas Lorena Furtado destete respetuoso")
+        # TEMPORALMENTE DESHABILITADO PARA DEBUG
+        if False and needs_night_weaning:
+            specialized_rag = get_rag_context_simple("desmame nocturno etapas Lorena Furtado destete respetuoso", search_id="night_weaning")
             print("🌙 Búsqueda RAG especializada para desmame nocturno")
-        elif needs_partner:
-            specialized_rag = await get_rag_context("pareja acompañamiento neurociencia asociación materna trabajo nocturno firmeza tranquila")
+        elif False and needs_partner:
+            specialized_rag = get_rag_context_simple("pareja acompañamiento neurociencia asociación materna trabajo nocturno firmeza tranquila", search_id="partner_support")
             print("👫 Búsqueda RAG especializada para trabajo con pareja")
-        elif needs_behavior:
-            specialized_rag = await get_rag_context("vocalizaciones autorregulación desarrollo emocional llanto descarga neurociencia infantil")
+        elif False and needs_behavior:
+            specialized_rag = get_rag_context_simple("vocalizaciones autorregulación desarrollo emocional llanto descarga neurociencia infantil", search_id="behavior_analysis")
             print("🎵 Búsqueda RAG especializada para vocalizaciones y comportamientos")
+        else:
+            print("ℹ️ Búsquedas especializadas temporalmente deshabilitadas para debug")
 
     # Construir lista de secciones adicionales del prompt
     prompt_sections = []
@@ -612,7 +593,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         if needs_behavior:
             prompt_sections.append("behavior.md")
         if needs_routine:
-            prompt_sections.extend(["routines.md", "reference_tables.md"])
+            prompt_sections.extend(["routines.md"])
         if needs_night_weaning:
             prompt_sections.append("night_weaning.md")
         if needs_partner:
@@ -631,9 +612,16 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     history = await get_conversation_history(
         user["id"],
         supabase,
+        limit_per_role=3,  # Reducido de 4 a 3 para menos influencia de patrones
         baby_id=selected_baby_id,
-        filter_by_baby=filter_by_baby
+        filter_by_baby=filter_by_baby,
+        user_only=True  # Solo mensajes del usuario para evitar copiar formatos
     )  # 👈 historial del backend
+
+    print(f"📚 Historial de conversación ({len(history)} mensajes):")
+    for i, msg in enumerate(history):
+        content_preview = msg.get('content', '')[:100] + '...' if len(msg.get('content', '')) > 100 else msg.get('content', '')
+        print(f"  {i+1}. [{msg.get('role', 'unknown')}]: {content_preview}")
 
     #print(f"📚 Contexto RAG recuperado:\n{rag_context[:500]}...\n")
     
@@ -656,17 +644,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         system_prompt_template += specific_template
         print(f"🎯 Template específico detectado y agregado")
 
-    examples_block = ""
-    matched_examples = []
     instruction_dataset = load_instruction_dataset()
-
-    if not simple_greeting:
-        matched_examples = detect_examples(payload.message)
-        if matched_examples:
-            examples_block = load_examples(matched_examples)
-            if examples_block:
-                system_prompt_template += "\n\n" + examples_block
-                print(f"🧩 Ejemplos activados: {matched_examples}")
 
     # Siempre agregar dataset general de instrucciones Lumi (v1)
     if instruction_dataset:
@@ -687,18 +665,47 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         rag_context=combined_rag_context if combined_rag_context else "No hay contexto especializado disponible para esta consulta."
     )
     
+    # Agregar instrucción específica sobre originalidad de formato
+    formatted_system_prompt += "\n\n" + """
+## INSTRUCCIÓN CRÍTICA SOBRE FORMATO:
+- NO copies la estructura, formato o estilo de mensajes anteriores en el historial
+- Cada respuesta debe ser ORIGINAL y específica para la consulta actual
+- Varía tu estructura: usa párrafos fluidos, listas simples, o formato según el contenido
+- Evita patrones repetitivos como siempre usar "## 1. Título" o listas numeradas idénticas
+- Responde de forma natural y conversacional, no como una plantilla rígida
+"""
+    
     # Log de longitud del prompt para debug
     prompt_length = len(formatted_system_prompt)
     print(f"📏 Longitud del prompt del sistema: {prompt_length} caracteres")
 
+    # Si es una consulta de referencias, manejarla directamente sin pasar por LLM
+    if not simple_greeting and is_reference_query:
+        print(f"🔍 [REFERENCIAS] Procesando consulta de referencias")
+        reference_response = await ReferenceDetector.handle_reference_query(payload.message, user_id)
+        return {"answer": reference_response, "usage": {}}
+
     # Construcción del body con prompt unificado
+    messages = [{"role": "system", "content": formatted_system_prompt}]
+    
+    # Agregar historial con contexto claro
+    if history:
+        messages.append({
+            "role": "system", 
+            "content": "=== CONTEXTO DE MENSAJES ANTERIORES DEL USUARIO (solo para entender el contexto, NO para copiar formato de respuestas) ==="
+        })
+        messages.extend(history)
+        messages.append({
+            "role": "system", 
+            "content": "=== FIN DEL CONTEXTO - Responde de forma original y específica ==="
+        })
+    
+    # Agregar mensaje actual
+    messages.append({"role": "user", "content": payload.message})
+
     body = {
         "model": OPENAI_MODEL,
-        "messages": [
-            {"role": "system", "content": formatted_system_prompt},
-            *history,  
-            {"role": "user", "content": payload.message},
-        ],
+        "messages": messages,
         "max_tokens": 1800,
         "temperature": 0.4,
         "top_p": 0.9,
@@ -768,16 +775,31 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         babies = supabase.table("babies").select("*").eq("user_id", user_id).execute()
         babies_context = babies.data or []
         
+        # Si hay baby_id seleccionado, usarlo como contexto prioritario
+        if hasattr(payload, 'baby_id') and payload.baby_id and selected_baby_id:
+            # Filtrar solo el bebé seleccionado para el detector de rutinas
+            selected_baby = [b for b in babies_context if b.get("id") == selected_baby_id]
+            if selected_baby:
+                print(f"🎯 [RUTINA-DETECCION] Usando bebé seleccionado: {selected_baby[0].get('name', 'Unknown')}")
+                routine_babies_context = selected_baby
+            else:
+                print(f"⚠️ [RUTINA-DETECCION] Baby ID {selected_baby_id} no encontrado, usando contexto completo")
+                routine_babies_context = babies_context
+        else:
+            print(f"ℹ️ [RUTINA-DETECCION] No hay baby_id seleccionado, usando contexto completo")
+            routine_babies_context = babies_context
+        
         # Analizar el mensaje para detectar información de rutinas
+        print("🔄 [RUTINA-DETECCION-1] Iniciando análisis de rutinas...")
         detected_routine = await RoutineDetector.analyze_message(
             payload.message, 
-            babies_context
+            routine_babies_context
         )
-        print(f"🕐 Rutina detectada: {detected_routine}")
+        print(f"🕐 [RUTINA-DETECCION-1] Rutina detectada: {detected_routine}")
         
         # Si se detecta una rutina, guardar en caché y preguntar confirmación
         if detected_routine and RoutineDetector.should_ask_confirmation(detected_routine):
-            print("✅ Se debe preguntar confirmación de rutina")
+            print("✅ [RUTINA-DETECCION-1] Se debe preguntar confirmación de rutina")
             
             # Guardar en caché para confirmación posterior
             routine_confirmation_cache.set_pending_confirmation(user_id, detected_routine, payload.message)
@@ -792,7 +814,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
                 "usage": usage
             }
         else:
-            print("❌ No se debe preguntar confirmación de rutina")
+            print("❌ [RUTINA-DETECCION-1] No se debe preguntar confirmación de rutina")
         
     except Exception as e:
         print(f"Error en detección de rutinas: {e}")
@@ -871,88 +893,92 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         pass
 
     # SEGUNDA PRIORIDAD: Detectar conocimiento importante en el mensaje del usuario
-    try:
-        print(f"� Analizando mensaje para conocimiento: {payload.message}")
-        
-        # Analizar el mensaje para detectar información importante
-        detected_knowledge = await KnowledgeDetector.analyze_message(
-            payload.message, 
-            babies_context
-        )
-        print(f"🧠 Conocimiento detectado: {detected_knowledge}")
+    # TEMPORALMENTE DESHABILITADO PARA DEBUG
+    if False:
+        try:
+            print(f"🔄 [CONOCIMIENTO-DETECCION-1] Analizando mensaje para conocimiento: {payload.message}")
+            
+            # Analizar el mensaje para detectar información importante
+            detected_knowledge = await KnowledgeDetector.analyze_message(
+                payload.message, 
+                babies_context
+            )
+            print(f"🧠 [CONOCIMIENTO-DETECCION-1] Conocimiento detectado: {detected_knowledge}")
 
-        # Enriquecer nombres genéricos con nombres reales del contexto
-        KnowledgeDetector.enrich_baby_names(
-            detected_knowledge,
-            babies_context=babies_context,
-            original_message=payload.message
-        )
-
-        # Guardar automáticamente conocimiento general sin confirmación
-        general_items = [item for item in detected_knowledge if item.get("category") == "general"]
-        for general_item in general_items:
-            baby_name = general_item.get("baby_name")
-            auto_baby_id = None
-
-            if baby_name:
-                auto_baby_id = await BabyKnowledgeService.find_baby_by_name(user_id, baby_name)
-
-            if not auto_baby_id and selected_baby_id:
-                auto_baby_id = selected_baby_id
-
-            if not auto_baby_id and babies_context:
-                auto_baby_id = babies_context[0]["id"]
-
-            if not auto_baby_id:
-                print(f"⚠️ No se pudo determinar bebé para conocimiento general: {general_item}")
-                continue
-
-            knowledge_payload = {
-                "category": general_item["category"],
-                "subcategory": general_item.get("subcategory"),
-                "title": general_item.get("title", general_item.get("description", "Contexto general")),
-                "description": general_item.get("description", general_item.get("title", "")),
-                "importance_level": general_item.get("importance_level", 2)
-            }
-
-            saved_general = await BabyKnowledgeService.save_or_update_general_knowledge(
-                user_id,
-                auto_baby_id,
-                knowledge_payload
+            # Enriquecer nombres genéricos con nombres reales del contexto
+            KnowledgeDetector.enrich_baby_names(
+                detected_knowledge,
+                babies_context=babies_context,
+                original_message=payload.message
             )
 
-            if saved_general:
-                print(f"🏠 Conocimiento general guardado automáticamente: {knowledge_payload['title']} (baby_id={auto_baby_id})")
-            else:
-                print(f"⚠️ No se pudo guardar conocimiento general: {knowledge_payload}")
+            # Guardar automáticamente conocimiento general sin confirmación
+            general_items = [item for item in detected_knowledge if item.get("category") == "general"]
+            for general_item in general_items:
+                baby_name = general_item.get("baby_name")
+                auto_baby_id = None
 
-        # Filtrar conocimientos generales para no pedir confirmación
-        detected_knowledge = [item for item in detected_knowledge if item.get("category") != "general"]
-        
-        # Si se detecta conocimiento importante, guardar en caché y preguntar
-        if detected_knowledge and KnowledgeDetector.should_ask_confirmation(detected_knowledge):
-            print("✅ Se debe preguntar confirmación")
+                if baby_name:
+                    auto_baby_id = await BabyKnowledgeService.find_baby_by_name(user_id, baby_name)
+
+                if not auto_baby_id and selected_baby_id:
+                    auto_baby_id = selected_baby_id
+
+                if not auto_baby_id and babies_context:
+                    auto_baby_id = babies_context[0]["id"]
+
+                if not auto_baby_id:
+                    print(f"⚠️ No se pudo determinar bebé para conocimiento general: {general_item}")
+                    continue
+
+                knowledge_payload = {
+                    "category": general_item["category"],
+                    "subcategory": general_item.get("subcategory"),
+                    "title": general_item.get("title", general_item.get("description", "Contexto general")),
+                    "description": general_item.get("description", general_item.get("title", "")),
+                    "importance_level": general_item.get("importance_level", 2)
+                }
+
+                saved_general = await BabyKnowledgeService.save_or_update_general_knowledge(
+                    user_id,
+                    auto_baby_id,
+                    knowledge_payload
+                )
+
+                if saved_general:
+                    print(f"🏠 Conocimiento general guardado automáticamente: {knowledge_payload['title']} (baby_id={auto_baby_id})")
+                else:
+                    print(f"⚠️ No se pudo guardar conocimiento general: {knowledge_payload}")
+
+            # Filtrar conocimientos generales para no pedir confirmación
+            detected_knowledge = [item for item in detected_knowledge if item.get("category") != "general"]
             
-            # Guardar en caché para confirmación posterior
-            confirmation_cache.set_pending_confirmation(user_id, detected_knowledge, payload.message)
+            # Si se detecta conocimiento importante, guardar en caché y preguntar
+            if detected_knowledge and KnowledgeDetector.should_ask_confirmation(detected_knowledge):
+                print("✅ [CONOCIMIENTO-DETECCION-1] Se debe preguntar confirmación")
+                
+                # Guardar en caché para confirmación posterior
+                confirmation_cache.set_pending_confirmation(user_id, detected_knowledge, payload.message)
+                
+                confirmation_message = KnowledgeDetector.format_confirmation_message(detected_knowledge)
+                
+                # Agregar la pregunta de confirmación a la respuesta
+                assistant_with_confirmation = f"{assistant}\n\n� {confirmation_message}"
+                
+                return {
+                    "answer": assistant_with_confirmation, 
+                    "usage": usage
+                }
+            else:
+                print("❌ [CONOCIMIENTO-DETECCION-1] No se debe preguntar confirmación de conocimiento")
             
-            confirmation_message = KnowledgeDetector.format_confirmation_message(detected_knowledge)
-            
-            # Agregar la pregunta de confirmación a la respuesta
-            assistant_with_confirmation = f"{assistant}\n\n� {confirmation_message}"
-            
-            return {
-                "answer": assistant_with_confirmation, 
-                "usage": usage
-            }
-        else:
-            print("❌ No se debe preguntar confirmación de conocimiento")
-        
-    except Exception as e:
-        print(f"Error en detección de conocimiento: {e}")
-        import traceback
-        traceback.print_exc()
-        # Continuar normalmente si falla la detección
-        pass
+        except Exception as e:
+            print(f"Error en detección de conocimiento: {e}")
+            import traceback
+            traceback.print_exc()
+            # Continuar normalmente si falla la detección
+            pass
+    else:
+        print("ℹ️ [DEBUG] Detección de conocimiento temporalmente deshabilitada")
 
     return {"answer": assistant, "usage": usage}
