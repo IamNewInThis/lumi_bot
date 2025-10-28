@@ -74,7 +74,7 @@ def get_rag_context(query: str, k: int = 20, top_sources: int = 3, search_id: st
         if src not in final_sources and len(final_sources) < top_sources:
             final_sources.append(src)
     
-    print(f"🎯 [{search_id.upper()}] Documentos dominantes detectados: {final_sources}")
+    print(f"🎯 [{search_id.upper()}] Documentos dominantes detectados context: {final_sources}")
 
     # Paso 3: búsqueda refinada en esas fuentes
     combined = []
@@ -181,7 +181,7 @@ async def get_rag_context_with_sources(query: str, k: int = 20, top_sources: int
     # Elegir top fuentes basado en frecuencia
     best_sources = sorted(source_counts, key=source_counts.get, reverse=True)[:top_sources]
     
-    print(f"🎯 [{search_id.upper()}] Documentos dominantes detectados: {best_sources}")
+    print(f"🎯 [{search_id.upper()}] Documentos dominantes detectados sources: {best_sources}")
 
     # Paso 2: búsqueda refinada en esas fuentes
     combined = []

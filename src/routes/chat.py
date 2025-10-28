@@ -177,12 +177,15 @@ def detect_consultation_type_and_load_template(message):
                 return f"\n\n## TEMPLATE ESPECÍFICO PARA IDEAS CREATIVAS DE ALIMENTOS:\n\n{f.read()}"
             
     # Palabras clave para viajes con niños
-    travels_keywords = ["viajar", "viajes", "viaje", "destino", "destinos", "vacaciones"]
+    travels_keywords = ["viajar", "viajes", "viaje", "destino", "destinos", "vacaciones", "mochila", "maleta"]
     if any(keyword in message_lower for keyword in travels_keywords):
         template_path = TEMPLATES_DIR / "travel_with_children.md"
         if template_path.exists():
+            print(f"🚀 Cargando template de viajes con niños desde: {template_path}")
             with open(template_path, "r", encoding="utf-8") as f:
                 return f"\n\n## TEMPLATE ESPECÍFICO PARA VIAJES CON NIÑOS:\n\n{f.read()}"
+        else: 
+            print(f"⚠️ Template de viajes con niños no encontrado: {template_path}")
     
     # Palabras clave para destete y lactancia
     weaning_keywords = ["destete", "reducir tomas", "dejar pecho", "tomas nocturnas", "descansar mejor", 
