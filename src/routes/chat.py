@@ -474,6 +474,12 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     # Construir el prompt del sistema usando la función extraída
     formatted_system_prompt = await build_system_prompt(payload, user_context, routines_context, combined_rag_context)
 
+    # Detectar tipo de consulta y agregar template específico
+    specific_template = detect_consultation_type_and_load_template(payload.message)
+    if specific_template:
+        formatted_system_prompt += specific_template
+        print(f"🎯 Template específico detectado y agregado")
+
     # Si es una consulta de referencias, manejarla directamente sin pasar por LLM
     if not simple_greeting and is_reference_query:
         print(f"🔍 [REFERENCIAS] Procesando consulta de referencias")
