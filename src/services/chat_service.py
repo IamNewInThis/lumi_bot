@@ -538,7 +538,7 @@ async def build_system_prompt(payload, user_context, routines_context, combined_
         )
     
     # Cantidad de caracteres que se le pasará del rag al prompt, de conocimiento
-    max_rag_length = 5000
+    max_rag_length = 10000
     if len(combined_rag_context) > max_rag_length:
         combined_rag_context = combined_rag_context[:max_rag_length] + "...\n[Contexto truncado por longitud]"
     

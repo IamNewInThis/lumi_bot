@@ -365,7 +365,6 @@ async def get_conversation_history(user_id, supabase_client, limit_per_role=4, b
 
     return formatted_history
 
-
 @router.post("/api/chat")
 async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     if not payload.message.strip():
