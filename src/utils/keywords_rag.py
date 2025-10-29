@@ -226,3 +226,59 @@ keywords = {
     'avião': ['viajes_con_ninos_mc.pdf', 'tips_viajes_r.pdf'],
     'ônibus': ['viajes_con_ninos_mc.pdf', 'tips_viajes_r.pdf'],
 }
+
+
+# ============================================================================
+# 📋 TEMPLATE DETECTION KEYWORDS (Separado de RAG keywords)
+# ============================================================================
+TEMPLATE_KEYWORDS = {
+    # 📅 RUTINAS / ROUTINE / ROTINA
+    'routine_template': {
+        'es': ['rutina', 'organizar', 'horarios', 'estructura', 'día completo'],
+        'en': ['routine', 'organize', 'schedule', 'structure', 'full day'],
+        'pt': ['rotina', 'estrutura']
+    },
+    
+    # 🍎 IDEAS CREATIVAS DE ALIMENTOS / CREATIVE FOOD IDEAS
+    'creative_food_template': {
+        'es': ['ideas creativas', 'presentar', 'verduras', 'alimentos', 'menú', 'comida'],
+        'en': ['creative ideas', 'present', 'vegetables', 'food', 'menu', 'meals'],
+        'pt': ['ideias criativas', 'apresentar', 'vegetais', 'cardápio', 'comida']
+    },
+    
+    # ✈️ VIAJES CON NIÑOS / TRAVEL WITH CHILDREN
+    'travel_template': {
+        'es': ['viajar', 'viajes', 'viaje', 'destino', 'destinos', 'vacaciones', 'mochila', 'maleta'],
+        'en': ['travel', 'travels', 'trip', 'destination', 'destinations', 'vacation', 'backpack', 'suitcase'],
+        'pt': ['viagens', 'viagem', 'férias', 'mala']
+    },
+    
+    # 🤱 DESTETE Y LACTANCIA / WEANING AND BREASTFEEDING
+    'weaning_template': {
+        'es': ['destete', 'reducir tomas', 'dejar pecho', 'tomas nocturnas', 'descansar mejor', 
+               'transición lactancia', 'lactancia', 'pecho', 'mamar', 'teta'],
+        'en': ['weaning', 'reduce feedings', 'stop breastfeeding', 'night feedings', 'sleep better',
+               'breastfeeding transition', 'breastfeeding', 'breast', 'nursing', 'nurse'],
+        'pt': ['desmame', 'reduzir mamadas', 'parar amamentação', 'mamadas noturnas', 'dormir melhor',
+               'transição amamentação', 'amamentação', 'peito', 'mamar', 'mama']
+    },
+    
+    # 📚 REFERENCIAS / REFERENCES / REFERÊNCIAS
+    'references_template': {
+        'es': ['fuentes', 'referencias', 'bibliografía', 'origen de la información', 
+               'de dónde sacaste', 'dónde obtuviste', 'qué fuentes', 'basado en qué'],
+        'en': ['sources', 'references', 'bibliography', 'origin of information',
+               'where did you get', 'where did you obtain', 'what sources', 'based on what'],
+        'pt': ['fontes', 'origem da informação',
+               'de onde você tirou', 'onde você obteve', 'quais fontes', 'baseado em quê']
+    }
+}
+
+# Mapeo de template_key a archivo de template
+TEMPLATE_FILES = {
+    'routine_template': 'template_rutinas.md',
+    'creative_food_template': 'template_ideas_creativas_alimentos.md',
+    'travel_template': 'travel_with_children.md',
+    'weaning_template': 'template_destete_lactancia.md',
+    'references_template': 'template_referencias.md'
+}
