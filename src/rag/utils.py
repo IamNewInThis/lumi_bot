@@ -32,7 +32,7 @@ def get_rag_context(query: str, k: int = 20, top_sources: int = 3, search_id: st
         similarity = fuzz.partial_ratio(normalized_keyword, query_norm)
 
         # Considerar coincidencia si es >= 80
-        if similarity >= 80 or normalized_keyword in query_norm:
+        if similarity >= 87 or normalized_keyword in query_norm:
             matched_sources.extend(sources)
             matched_keywords.append((keyword, similarity))
 
