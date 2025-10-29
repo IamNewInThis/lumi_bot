@@ -296,14 +296,14 @@ async def get_user_profiles_and_babies(user_id, supabase_client, baby_id=None, b
                 f"- Bebé: {b['name']}, fecha de nacimiento {b['birthdate']}, "
                 f"edad: {edad_anios} años ({edad_meses} meses aprox.), "
                 f"etapa de desarrollo: {etapa_desarrollo}, "
-                f"alimentación: {b.get('feeding', 'N/A')}, "
+                # f"alimentación: {b.get('feeding', 'N/A')}, "
                 f"peso: {b.get('weight', 'N/A')} kg, "
                 f"altura: {b.get('height', 'N/A')} cm"
             )
 
     context = ""
     if profile_texts:
-        context += "Perfiles:\n" + "\n".join(profile_texts) + "\n\n"
+        context += "Cuidador:\n" + "\n".join(profile_texts) + "\n\n"
     if baby_texts:
         context += "Bebés:\n" + "\n".join(baby_texts) + "\n\n"
     
@@ -509,7 +509,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     body = {
         "model": OPENAI_MODEL,
         "messages": messages,
-        "max_tokens": 1800,
+        "max_tokens": 2000,
         "temperature": 0.4,
         "top_p": 0.9,
     }

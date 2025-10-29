@@ -11,6 +11,8 @@ keywords = {
 
     # 🚫 CASTIGOS Y CONSECUENCIAS
     'castigos': ['disciplina_sin_lagrimas.pdf'],
+    'castigando':['el_cerebro_del_nino.pdf', 'disciplina_sin_lagrimas.pdf'],
+    'reteniendo': ['el_cerebro_del_nino.pdf', 'disciplina_sin_lagrimas.pdf'],
     'consecuencias': ['disciplina_sin_lagrimas.pdf', 'limites.pdf'],
     'regaños': ['disciplina_sin_lagrimas.pdf'],
     'correcciones': ['disciplina_sin_lagrimas.pdf'],
