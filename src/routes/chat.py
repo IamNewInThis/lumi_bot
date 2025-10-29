@@ -10,6 +10,10 @@ from ..models.chat import ChatRequest, KnowledgeConfirmRequest
 from ..auth import get_current_user
 from src.rag.utils import get_rag_context, get_rag_context_simple
 from src.utils.date_utils import calcular_edad, calcular_meses
+from src.utils.lang import detect_lang
+from src.state.session_store import get_lang, set_lang
+from src.prompts.system.build_system_prompt_for_lumi import build_system_prompt_for_lumi
+from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES 
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..services.knowledge_service import BabyKnowledgeService
@@ -153,57 +157,48 @@ def load_system_prompt(section_files=None):
 
 def detect_consultation_type_and_load_template(message):
     """
-        Detecta el tipo de consulta y carga el template específico correspondiente.
+    Detecta el tipo de consulta y carga el template específico correspondiente.
+    Utiliza keywords multiidioma desde keywords_rag.py
     """
     message_lower = message.lower()
     
-    # Palabras clave para rutinas
-    routine_keywords = ["rutina", "organizar", "horarios", "estructura", "día completo"]
-    if any(keyword in message_lower for keyword in routine_keywords):
-        template_path = TEMPLATES_DIR / "template_rutinas.md"
-        if template_path.exists():
-            print(f"🚀 Cargando template de rutinas desde: {template_path}")
-            with open(template_path, "r", encoding="utf-8") as f:
-                return f"\n\n## TEMPLATE ESPECÍFICO PARA RUTINAS MEJORADAS:\n\n{f.read()}"
-        else:
-            print(f"⚠️ Template de rutinas no encontrado: {template_path}")
-    
-    # Palabras clave para ideas creativas de alimentos
-    creative_food_keywords = ["ideas creativas", "presentar", "verduras", "alimentos", "menú", "comida"]
-    if any(keyword in message_lower for keyword in creative_food_keywords):
-        template_path = TEMPLATES_DIR / "template_ideas_creativas_alimentos.md"
-        if template_path.exists():
-            with open(template_path, "r", encoding="utf-8") as f:
-                return f"\n\n## TEMPLATE ESPECÍFICO PARA IDEAS CREATIVAS DE ALIMENTOS:\n\n{f.read()}"
+    # Iterar sobre cada template y sus keywords
+    for template_key, keywords_by_lang in TEMPLATE_KEYWORDS.items():
+        # Combinar todas las keywords de todos los idiomas
+        all_keywords = []
+        for lang, keywords in keywords_by_lang.items():
+            all_keywords.extend(keywords)
+        
+        # Verificar si alguna keyword está en el mensaje
+        if any(keyword in message_lower for keyword in all_keywords):
+            template_filename = TEMPLATE_FILES.get(template_key)
             
-    # Palabras clave para viajes con niños
-    travels_keywords = ["viajar", "viajes", "viaje", "destino", "destinos", "vacaciones", "mochila", "maleta"]
-    if any(keyword in message_lower for keyword in travels_keywords):
-        template_path = TEMPLATES_DIR / "travel_with_children.md"
-        if template_path.exists():
-            print(f"🚀 Cargando template de viajes con niños desde: {template_path}")
-            with open(template_path, "r", encoding="utf-8") as f:
-                return f"\n\n## TEMPLATE ESPECÍFICO PARA VIAJES CON NIÑOS:\n\n{f.read()}"
-        else: 
-            print(f"⚠️ Template de viajes con niños no encontrado: {template_path}")
-    
-    # Palabras clave para destete y lactancia
-    weaning_keywords = ["destete", "reducir tomas", "dejar pecho", "tomas nocturnas", "descansar mejor", 
-                       "transición lactancia", "lactancia", "pecho", "mamar", "teta"]
-    if any(keyword in message_lower for keyword in weaning_keywords):
-        template_path = TEMPLATES_DIR / "template_destete_lactancia.md"
-        if template_path.exists():
-            with open(template_path, "r", encoding="utf-8") as f:
-                return f"\n\n## TEMPLATE ESPECÍFICO PARA DESTETE Y LACTANCIA:\n\n{f.read()}"
+            if not template_filename:
+                print(f"⚠️ No se encontró archivo de template para: {template_key}")
+                continue
             
-    # Palabras claves para detectar solicitud de referencias de las respuesta
-    references_keywords = ["fuentes", "referencias", "bibliografía", "origen de la información", "de dónde sacaste", "dónde obtuviste", "qué fuentes", "basado en qué"]
-    if any(keyword in message_lower for keyword in references_keywords):
-        template_path = TEMPLATES_DIR / "template_referencias.md"
-        if template_path.exists():
-            with open(template_path, "r", encoding="utf-8") as f:
-                return f"\n\n## TEMPLATE ESPECÍFICO PARA REFERENCIAS:\n\n{f.read()}"
-
+            template_path = TEMPLATES_DIR / template_filename
+            
+            if template_path.exists():
+                print(f"🚀 Template detectado: {template_key} ({template_filename})")
+                
+                # Detectar qué idioma activó el template (para logging)
+                detected_lang = None
+                for lang, keywords in keywords_by_lang.items():
+                    if any(kw in message_lower for kw in keywords):
+                        detected_lang = lang
+                        break
+                
+                print(f"   Idioma detectado: {detected_lang}")
+                print(f"   Cargando desde: {template_path}")
+                
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template_name = template_key.replace('_template', '').replace('_', ' ').title()
+                    return f"\n\n## TEMPLATE ESPECÍFICO PARA {template_name.upper()}:\n\n{f.read()}"
+            else:
+                print(f"⚠️ Template no encontrado: {template_path}")
+    
+    # Si no se detectó ningún template
     return ""
 
 def format_llm_output(text):
@@ -378,6 +373,16 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     user_id = user["id"]
     
+    # 1️⃣ Detectar idioma desde el primer mensaje
+    conversation_id = payload.baby_id or str(user_id)
+    lang = get_lang(conversation_id)
+
+    if not lang:
+        lang = detect_lang(payload.message)
+        set_lang(conversation_id, lang)
+
+    print(f"🌐 Idioma detectado para la conversación: {lang}")
+    
     babies_response = supabase.table("babies").select("*").eq("user_id", user_id).execute()
     babies_context = babies_response.data or []
     print(f"👶 Bebés en contexto disponible: {len(babies_context)}")
@@ -467,12 +472,21 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         supabase,
         baby_id=selected_baby_id,
         filter_by_baby=filter_by_baby
-    )  # 👈 historial del backend
+    )
 
-    #print(f"📚 Contexto RAG recuperado:\n{rag_context[:500]}...\n")
+    # 2️⃣ Construir el prompt con el idioma detectado PRIMERO
+    lang_directive = build_system_prompt_for_lumi(lang)
     
-    # Construir el prompt del sistema usando la función extraída
+    # 3️⃣ Construir el prompt general (Lumi + idioma)
     formatted_system_prompt = await build_system_prompt(payload, user_context, routines_context, combined_rag_context)
+
+    # 4️⃣ Agregar directiva de idioma de forma más explícita y prioritaria
+    formatted_system_prompt = f"""🌐 INSTRUCCIÓN CRÍTICA DE IDIOMA:
+{lang_directive}
+
+IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No uses ningún otro idioma.
+
+{formatted_system_prompt}"""
 
     # Detectar tipo de consulta y agregar template específico
     specific_template = detect_consultation_type_and_load_template(payload.message)
@@ -501,8 +515,9 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             "content": "=== FIN DEL CONTEXTO - Responde de forma original y específica ==="
         })
     
-    # Agregar mensaje actual
-    messages.append({"role": "user", "content": payload.message})
+    # 5️⃣ Reforzar el idioma en el mensaje del usuario
+    user_message_with_lang = f"[Responder en {lang.upper()}] {payload.message}"
+    messages.append({"role": "user", "content": user_message_with_lang})
 
     body = {
         "model": OPENAI_MODEL,
