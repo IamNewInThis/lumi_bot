@@ -6,6 +6,23 @@ import unicodedata
 from rapidfuzz import fuzz
 
 
+# Construye un string con metadata de origen para cada chunk recuperado
+def _format_chunk_with_source(doc) -> str:
+    metadata = getattr(doc, "metadata", {}) or {}
+    source = metadata.get("source", "unknown")
+    chunk_index = metadata.get("chunk")
+    page = metadata.get("page")
+
+    info_parts = [f"Fuente: {source}"]
+    if page is not None:
+        info_parts.append(f"Página: {page}")
+    if chunk_index is not None:
+        info_parts.append(f"Chunk: {chunk_index}")
+
+    header = " | ".join(info_parts)
+    return f"[{header}]\n{doc.page_content}"
+
+
 # Función para normalizar texto (quitar acentos)
 def remove_accents(text: str) -> str:
     return ''.join(
@@ -50,7 +67,7 @@ def get_rag_context(query: str, k: int = 20, top_sources: int = 3, search_id: st
             print("⚠️ Sin resultados en fuentes keyword, fallback global...")
             combined = vs.similarity_search(query, k=k)
 
-        context = "\n\n".join([d.page_content for d in combined])
+        context = "\n\n".join(_format_chunk_with_source(doc) for doc in combined)
         return context, matched_sources
 
     # 🔹 Si no hay keywords detectadas, usa búsqueda semántica estándar
@@ -72,7 +89,7 @@ def get_rag_context(query: str, k: int = 20, top_sources: int = 3, search_id: st
     if not combined:
         combined = results
 
-    context = "\n\n".join([d.page_content for d in combined])
+    context = "\n\n".join(_format_chunk_with_source(doc) for doc in combined)
     return context, best_sources
 
 def get_rag_context_simple(query: str, k: int = 20, top_sources: int = 3, search_id: str = "main") -> str:
@@ -179,7 +196,7 @@ async def get_rag_context_with_sources(query: str, k: int = 20, top_sources: int
         combined = results
 
     # Preparar contexto y chunks con metadata
-    context = "\n\n".join([d.page_content for d in combined])
+    context = "\n\n".join(_format_chunk_with_source(doc) for doc in combined)
     
     # Convertir chunks a formato dict con metadata completa
     chunks_with_metadata = []
