@@ -13,7 +13,7 @@ from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
 from src.prompts.system.build_system_prompt_for_lumi import build_system_prompt_for_lumi
-from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES 
+from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, KEYWORDS_PROFILE_ES, detect_profile_keywords, print_detected_keywords_summary
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..services.knowledge_service import BabyKnowledgeService
@@ -23,6 +23,7 @@ from ..services.routine_service import RoutineService
 from ..utils.routine_cache import routine_confirmation_cache
 from ..utils.reference_detector import ReferenceDetector
 from ..utils.source_cache import source_cache
+from ..services.profile_service import BabyProfileService
 from ..services.chat_service import (
     handle_knowledge_confirmation,
     handle_routine_confirmation,
@@ -383,9 +384,65 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     print(f"🌐 Idioma detectado para la conversación: {lang}")
     
+    # Obtener información de los bebés del usuario
     babies_response = supabase.table("babies").select("*").eq("user_id", user_id).execute()
     babies_context = babies_response.data or []
     print(f"👶 Bebés en contexto disponible: {len(babies_context)}")
+    
+    # Determinar el bebé activo y calcular su edad en meses
+    active_baby = None
+    baby_age_months = None
+    
+    if payload.baby_id:
+        # Buscar el bebé específico del payload
+        active_baby = next((b for b in babies_context if b['id'] == payload.baby_id), None)
+    elif babies_context:
+        # Usar el primer bebé si no se especificó
+        active_baby = babies_context[0]
+    
+    if active_baby and active_baby.get('birthdate'):
+        from ..utils.date_utils import calcular_meses
+        baby_age_months = calcular_meses(active_baby['birthdate'])
+        print(f"👶 [AGE] Bebé activo: {active_baby.get('name', 'Sin nombre')} - Edad: {baby_age_months} meses")
+    
+    # 🎯 Detectar keywords del perfil del bebé (con filtro de edad si está disponible)
+    detected_profile_keywords = detect_profile_keywords(
+        payload.message, 
+        lang, 
+        age_months=baby_age_months
+    )
+    if detected_profile_keywords:
+        print(f"🔍 [PROFILE KEYWORDS] Se detectaron {len(detected_profile_keywords)} keyword(s) del perfil:")
+        for kw in detected_profile_keywords:
+            print(f"   - {kw['category']}.{kw.get('field_key', kw['field'])}: '{kw['keyword']}'")
+    
+    # 💾 Guardar automáticamente keywords del perfil detectados en baby_profile
+    if detected_profile_keywords:
+        # Determinar el baby_id correcto
+        target_baby_id = None
+        
+        # 1. Prioridad: baby_id del payload (si el usuario seleccionó un bebé específico)
+        if payload.baby_id:
+            target_baby_id = payload.baby_id
+            print(f"🎯 [PROFILE] Usando baby_id del payload: {target_baby_id}")
+        # 2. Si no hay baby_id en payload pero hay bebés, usar el primero
+        elif babies_context:
+            target_baby_id = babies_context[0]['id']
+            print(f"⚠️ [PROFILE] No hay baby_id en payload, usando el primer bebé: {target_baby_id}")
+        
+        if target_baby_id:
+            try:
+                saved_count = await BabyProfileService.save_detected_keywords(
+                    baby_id=target_baby_id,
+                    detected_keywords=detected_profile_keywords,
+                    lang=lang
+                )
+                if saved_count > 0:
+                    print(f"✅ [PROFILE] Guardados {saved_count} keywords del perfil para baby_id={target_baby_id}")
+            except Exception as e:
+                print(f"❌ [PROFILE] Error guardando keywords del perfil: {e}")
+        else:
+            print(f"⚠️ [PROFILE] No se pudo determinar baby_id para guardar keywords")
     
     # Verificar si es una respuesta de confirmación de preferencias (KNOWLEDGE)
     knowledge_confirmation_result = await handle_knowledge_confirmation(user_id, payload.message)

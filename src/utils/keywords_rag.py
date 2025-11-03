@@ -1,3 +1,13 @@
+# ============================================================================
+# Imports de diccionarios de keywords por idioma
+# ============================================================================
+from .keywords_profile_es import KEYWORDS_PROFILE_ES
+from .keywords_profile_en import KEYWORDS_PROFILE_EN
+from .keywords_profile_pt import KEYWORDS_PROFILE_PT
+
+# ============================================================================
+# Keywords para RAG (búsqueda de documentos)
+# ============================================================================
 keywords = {
     # 🇪🇸 ESPAÑOL ============================================================
 
@@ -270,6 +280,7 @@ TEMPLATE_KEYWORDS = {
         'pt': ['fontes', 'origem da informação',
                'de onde você tirou', 'onde você obteve', 'quais fontes', 'baseado em quê']
     }
+    
 }
 
 # Mapeo de template_key a archivo de template
@@ -280,3 +291,279 @@ TEMPLATE_FILES = {
     'weaning_template': 'template_destete_lactancia.md',
     'references_template': 'template_referencias.md'
 }
+
+# ============================================================================
+# 🔍 FUNCIONES DE DETECCIÓN DE KEYWORDS DEL PERFIL
+# ============================================================================
+
+def get_age_range_key(age_months: int) -> str:
+    """
+    Retorna la clave del rango de edad según los meses del bebé.
+    
+    Args:
+        age_months: Edad del bebé en meses
+    
+    Returns:
+        String con el rango de edad ('0_6', '6_12', '12_24', '24_48', '48_84')
+    """
+    if age_months <= 6:
+        return '0_6'
+    elif age_months <= 12:
+        return '6_12'
+    elif age_months <= 24:
+        return '12_24'
+    elif age_months <= 48:
+        return '24_48'
+    else:
+        return '48_84'
+
+
+def get_age_appropriate_categories(age_months: int) -> set:
+    """
+    Retorna las categorías principales permitidas según la edad del bebé.
+    Con la nueva estructura jerárquica, todas las categorías están disponibles,
+    pero filtradas por rango de edad dentro de cada categoría.
+    
+    Args:
+        age_months: Edad del bebé en meses
+    
+    Returns:
+        Set con las categorías principales disponibles (siempre todas para la nueva estructura)
+    """
+    # ⚠️ Si age_months es None o inválido, NO permitir nada por seguridad
+    if age_months is None or age_months < 0:
+        print(f"[AGE FILTER] Edad inválida ({age_months}), retornando set vacío")
+        return set()
+    
+    age_range = get_age_range_key(age_months)
+    print(f"[AGE FILTER] {age_months} meses -> Rango: {age_range}")
+    
+    # Con la nueva estructura, retornamos todas las categorías principales
+    # El filtro de edad se aplica automáticamente porque cada categoría tiene sus propios rangos
+    # IMPORTANTE: Usar las claves en inglés (sin guiones bajos) que están en los diccionarios
+    return {
+        'sleep and rest',
+        'daily care',
+        'autonomy and development',
+        'emotions bonds and parenting',
+        'family context and environment',
+        'travel and mobility'
+    }
+
+
+def detect_profile_keywords(message: str, lang: str = 'es', verbose: bool = True, age_months: int = None) -> list:
+    """
+    Detecta keywords del perfil del bebé en el mensaje del usuario.
+    Ahora con estructura jerárquica: categoria_principal > rango_edad > subcategoría > keywords
+    
+    IMPORTANTE: Busca en los 3 idiomas (ES, EN, PT) simultáneamente para evitar problemas
+    de detección de idioma incorrecta.
+    
+    Args:
+        message: El mensaje del usuario
+        lang: Idioma detectado ('es', 'en', 'pt') - usado solo para informar, busca en todos
+        verbose: Si es True, imprime en consola cada keyword detectado
+        age_months: Edad del bebé en meses (REQUERIDO). Si no se provee, no detecta nada.
+    
+    Returns:
+        Lista de diccionarios con información de keywords encontradas
+        Formato: [{'category': str, 'age_range': str, 'field': str, 'field_key': str, 'keyword': str}, ...]
+    """
+    detected_keywords = []
+    detected_categories = set()
+    message_lower = message.lower()
+    
+    # ⚠️ Si no hay edad, retornar lista vacía (no detectar nada por seguridad)
+    if age_months is None:
+        if verbose:
+            print(f"[AGE FILTER] No hay edad del bebé disponible, NO se detectarán keywords del perfil")
+        return []
+    
+    # Obtener rango de edad y categorías permitidas
+    age_range = get_age_range_key(age_months)
+    allowed_categories = get_age_appropriate_categories(age_months)
+    
+    if verbose:
+        print(f"[AGE FILTER] Edad: {age_months} meses -> Rango: {age_range}")
+    
+    # 🌍 Buscar en los 3 idiomas para evitar problemas de detección de idioma
+    keywords_dicts = [
+        ('es', KEYWORDS_PROFILE_ES),
+        ('en', KEYWORDS_PROFILE_EN),
+        ('pt', KEYWORDS_PROFILE_PT)
+    ]
+    
+    def search_in_dict(data, category_path="", main_category=None, current_age_range=None, subcategory=None):
+        """
+        Función recursiva para buscar en diccionarios anidados con estructura jerárquica.
+        
+        Estructura esperada:
+        {
+            'sleep and rest': {
+                '0_6': {
+                    'sleep_rhythm': {
+                        'short_cycles': 'ciclos cortos',
+                        ...
+                    },
+                    'sleepwear': {
+                        'base': {
+                            'short_sleeve_bodysuit': 'con body de manga corta',
+                            ...
+                        },
+                        'mid_layer': {...},
+                        ...
+                    },
+                    ...
+                },
+                ...
+            },
+            ...
+        }
+        
+        Soporta niveles anidados ilimitados y los concatena con punto:
+        - sleepwear.base.short_sleeve_bodysuit
+        - sleepwear.mid_layer.one_piece_sleeper
+        """
+        if isinstance(data, dict):
+            for key, value in data.items():
+                current_path = f"{category_path}.{key}" if category_path else key
+                
+                # Nivel 1: Categoría principal (ej: 'sleep and rest')
+                if not main_category:
+                    # Es una categoría principal
+                    if key in allowed_categories and isinstance(value, dict):
+                        # Buscar dentro de esta categoría
+                        search_in_dict(value, current_path, main_category=key)
+                
+                # Nivel 2: Rango de edad (ej: '0_6', '6_12')
+                elif not current_age_range:
+                    # Verificar si es un rango de edad
+                    if key == age_range and isinstance(value, dict):
+                        # Este es el rango correcto, buscar dentro
+                        search_in_dict(value, current_path, main_category=main_category, current_age_range=key)
+                    elif isinstance(value, dict):
+                        # Seguir buscando otros niveles
+                        search_in_dict(value, current_path, main_category=main_category, current_age_range=current_age_range)
+                
+                # Nivel 3+: Subcategorías y keywords (con soporte para anidación profunda)
+                else:
+                    if isinstance(value, str):
+                        # Es un keyword final
+                        if value.lower() in message_lower:
+                            path_parts = current_path.split('.')
+                            # Remover categoría principal y rango de edad del path
+                            # path_parts = ['sleep and rest', '0_6', 'sleepwear', 'base', 'short_sleeve_bodysuit']
+                            # Queremos: subcategory='sleepwear', field='sleepwear.base.short_sleeve_bodysuit'
+                            
+                            if len(path_parts) >= 3:
+                                # Subcategoría principal (nivel 3)
+                                main_subcategory = path_parts[2]
+                                
+                                # Field completo: concatenar desde subcategoría hasta el final
+                                field_path = '.'.join(path_parts[2:])
+                                
+                                # field_key es la última parte
+                                field_key = path_parts[-1]
+                                
+                                keyword_info = {
+                                    'category': main_category,
+                                    'age_range': current_age_range,
+                                    'subcategory': main_subcategory,
+                                    'field': field_path,  # ej: 'sleepwear.base.short_sleeve_bodysuit'
+                                    'field_key': field_key,  # ej: 'short_sleeve_bodysuit'
+                                    'keyword': value
+                                }
+                                detected_keywords.append(keyword_info)
+                                
+                                # Imprimir categoría detectada
+                                if verbose:
+                                    category_key = f"{main_category}.{main_subcategory}"
+                                    if category_key not in detected_categories:
+                                        print(f">> {main_category} > {current_age_range} > {main_subcategory}")
+                                        detected_categories.add(category_key)
+                    
+                    elif isinstance(value, dict):
+                        # Seguir navegando en niveles más profundos
+                        search_in_dict(value, current_path, main_category=main_category, current_age_range=current_age_range, subcategory=subcategory)
+                    
+                    elif isinstance(value, list):
+                        # Lista de keywords
+                        for item in value:
+                            if isinstance(item, str) and item.lower() in message_lower:
+                                path_parts = current_path.split('.')
+                                
+                                if len(path_parts) >= 3:
+                                    main_subcategory = path_parts[2]
+                                    field_path = '.'.join(path_parts[2:])
+                                    field_key = path_parts[-1]
+                                    
+                                    keyword_info = {
+                                        'category': main_category,
+                                        'age_range': current_age_range,
+                                        'subcategory': main_subcategory,
+                                        'field': field_path,
+                                        'field_key': field_key,
+                                        'keyword': item
+                                    }
+                                    detected_keywords.append(keyword_info)
+                                    
+                                    if verbose:
+                                        category_key = f"{main_category}.{main_subcategory}"
+                                        if category_key not in detected_categories:
+                                            print(f">> {main_category} > {current_age_range} > {main_subcategory}")
+                                            detected_categories.add(category_key)
+    
+    # 🌍 Buscar en todos los idiomas (ES, EN, PT)
+    for lang_code, keywords_dict in keywords_dicts:
+        search_in_dict(keywords_dict)
+    
+    # Eliminar duplicados (puede que un keyword esté en múltiples idiomas)
+    # Usar el campo 'field' como clave única
+    unique_keywords = {}
+    for kw in detected_keywords:
+        field = kw['field']
+        if field not in unique_keywords:
+            unique_keywords[field] = kw
+    
+    detected_keywords = list(unique_keywords.values())
+    
+    return detected_keywords
+
+
+def print_detected_keywords_summary(detected_keywords: list):
+    """
+    Imprime un resumen organizado de los keywords detectados.
+    
+    Args:
+        detected_keywords: Lista de keywords detectados (output de detect_profile_keywords)
+    """
+    if not detected_keywords:
+        print("ℹ️  No se detectaron keywords del perfil")
+        return
+    
+    # Agrupar por categoría
+    by_category = {}
+    for kw in detected_keywords:
+        category = kw['category']
+        if category not in by_category:
+            by_category[category] = []
+        by_category[category].append(kw)
+    
+    print(f"\n{'='*70}")
+    print(f"🎯 KEYWORDS DEL PERFIL DETECTADOS: {len(detected_keywords)} matches")
+    print(f"{'='*70}")
+    
+    for category, keywords in by_category.items():
+        print(f"\n📁 Categoría: {category.upper()}")
+        print(f"   Total en esta categoría: {len(keywords)}")
+        
+        # Mostrar keywords únicos
+        unique_kws = {}
+        for kw in keywords:
+            if kw['keyword'] not in unique_kws:
+                unique_kws[kw['keyword']] = kw['field']
+        
+        for keyword, field in unique_kws.items():
+            print(f"   • {field} → '{keyword}'")
+    
+    print(f"\n{'='*70}\n")
