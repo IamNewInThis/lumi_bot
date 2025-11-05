@@ -13,6 +13,7 @@ from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
 from src.prompts.system.build_system_prompt_for_lumi import build_system_prompt_for_lumi
+from src.prompts.builder import build_structured_prompt
 from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES 
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
@@ -29,7 +30,6 @@ from ..services.chat_service import (
     detect_routine_in_user_message,
     detect_routine_in_response,
     detect_knowledge_in_message,
-    build_system_prompt,
     ROUTINE_KEYWORDS,
     NIGHT_WEANING_KEYWORDS,
     PARTNER_KEYWORDS,
@@ -473,19 +473,13 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         filter_by_baby=filter_by_baby
     )
 
-    # 2️⃣ Construir el prompt con el idioma detectado PRIMERO
-    lang_directive = build_system_prompt_for_lumi(lang)
-    
-    # 3️⃣ Construir el prompt general (Lumi + idioma)
-    formatted_system_prompt = await build_system_prompt(payload, user_context, routines_context, combined_rag_context)
-
-    # 4️⃣ Agregar directiva de idioma de forma más explícita y prioritaria
-    formatted_system_prompt = f"""🌐 INSTRUCCIÓN CRÍTICA DE IDIOMA:
-{lang_directive}
-
-IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No uses ningún otro idioma.
-
-{formatted_system_prompt}"""
+    formatted_system_prompt = build_structured_prompt(
+        lang=lang,
+        user_context=user_context,
+        routines_context=routines_context,
+        rag_context=combined_rag_context,
+        extra_sections=prompt_sections,
+    )
 
     # Detectar tipo de consulta y agregar template específico
     specific_template = detect_consultation_type_and_load_template(payload.message)
@@ -518,7 +512,7 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
     user_message_with_lang = f"[Responder en {lang.upper()}] {payload.message}"
     messages.append({"role": "user", "content": user_message_with_lang})
 
-    print(f"🛠️ Construyendo request para OpenAI con {len(messages)} mensajes en el contexto")
+    print(f"System Promop: {messages}")
 
     body = {
         "model": OPENAI_MODEL,

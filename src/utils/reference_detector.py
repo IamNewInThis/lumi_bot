@@ -139,16 +139,38 @@ Para obtener referencias específicas sobre un tema particular, puedes preguntar
         # Limpiar duplicados y limitar
         authors_found = list(set(authors_found))[:5]
         
-        # Buscar instituciones y organizaciones
+        # Buscar instituciones, organizaciones y referencias de libros
         institution_patterns = [
             r'\b(European Medicines Agency)\s*\([^)]*\)?',
             r'\b(American Herbal Products Association)\s*\([^)]*\)?', 
             r'\b(National Association for Holistic Aromatherapy)\s*\([^)]*\)?',
             r'\b(Alliance of International Aromatherapists)\s*\([^)]*\)?',
-            r'\b([A-Z][a-záéíóúñ\s]{15,60}(?:Agency|Association|Council|Institute|Organization|Academy))\b'
+            r'\b(American Academy of Pediatrics)\b',
+            r'\b(American Psychological Association)\b',
+            r'\b(World Health Organization)\b',
+            r'\b(Mindsight Institute)\b',
+            r'\b([A-Z][a-záéíóúñ\s]{15,80}(?:Agency|Association|Council|Institute|Organization|Academy))\b'
+        ]
+        
+        # Buscar también referencias de libros específicamente
+        book_patterns = [
+            r'del libro\s+"([^"]+)"',
+            r'en el libro\s+"([^"]+)"',
+            r'libro\s+"([^"]+)"',
+            r'"([^"]{15,100})"(?:\s*(?:de|del|por)\s+[A-Z][a-záéíóúñ]+)',  # Títulos entre comillas seguidos de autor
+            r'(?:según|en|del|como indica|menciona)\s+([A-Z][^.]{15,80}(?:Manual|Guide|Handbook|Book|Guía|Tratado|Estudio))',
+            r'([A-Z][^.]{15,80}:\s*[A-Z][^.]{10,60})',  # Títulos con subtítulos
+            r'en\s+"([^"]{15,100})"',  # Cualquier título entre comillas después de "en"
+            r'trabajo\s+"([^"]+)"',  # Referencias a trabajos específicos
+            r'investigación\s+"([^"]+)"',  # Referencias a investigaciones específicas
+            r'guías oficiales de\s+([^.]{10,60})',  # Referencias a guías oficiales
+            r'recomendaciones de\s+(la\s+)?([A-Z][^.]{15,80}(?:Association|Academy|Organization|Institute))',  # Recomendaciones de organizaciones
         ]
         
         institutions_found = []
+        books_found = []
+        
+        # Buscar instituciones
         for pattern in institution_patterns:
             matches = re.findall(pattern, all_content, re.IGNORECASE)
             for match in matches:
@@ -156,12 +178,51 @@ Para obtener referencias específicas sobre un tema particular, puedes preguntar
                     inst_clean = match.strip()
                     # Remover siglas entre paréntesis al final
                     inst_clean = re.sub(r'\s*\([^)]*\)$', '', inst_clean)
-                    if len(inst_clean) > 50:
-                        inst_clean = inst_clean[:50] + "..."
+                    # No truncar automáticamente, solo si es excesivamente largo
+                    if len(inst_clean) > 100:
+                        inst_clean = inst_clean[:97] + "..."
                     institutions_found.append(inst_clean)
         
-        # Limpiar duplicados y limitar
-        institutions_found = list(set(institutions_found))[:4]
+        # Buscar libros y publicaciones
+        for pattern in book_patterns:
+            matches = re.findall(pattern, all_content, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, tuple):
+                    # Para patrones que devuelven tuplas, tomar el elemento más relevante
+                    book_text = match[1] if len(match) > 1 and match[1] else match[0]
+                else:
+                    book_text = match
+                
+                if isinstance(book_text, str) and len(book_text.strip()) > 10:
+                    book_clean = book_text.strip()
+                    # Limpiar caracteres extraños pero mantener el título completo
+                    book_clean = re.sub(r'^\W+|\W+$', '', book_clean)
+                    # Limpiar referencias incompletas
+                    book_clean = re.sub(r'\s*\.\.\.$', '', book_clean)  # Remover puntos suspensivos al final
+                    
+                    # Validar que sea un título razonable
+                    if (10 < len(book_clean) < 150 and 
+                        not book_clean.lower().startswith(('del ', 'de ', 'la ', 'el ')) and
+                        not book_clean.endswith(('...', 'A...'))):
+                        books_found.append(book_clean)
+        
+        # Limpiar duplicados y mejorar presentación
+        institutions_found = list(set(institutions_found))[:6]
+        books_found = list(set(books_found))[:5]
+        
+        # Limpiar libros duplicados similares
+        books_cleaned = []
+        for book in books_found:
+            # Evitar duplicados parciales
+            is_duplicate = False
+            for existing in books_cleaned:
+                if (book.lower() in existing.lower() or existing.lower() in book.lower()) and abs(len(book) - len(existing)) < 10:
+                    is_duplicate = True
+                    break
+            if not is_duplicate:
+                books_cleaned.append(book)
+        
+        books_found = books_cleaned[:5]
         
         # Construir respuesta resumida
         response = "📚 **Referencias y fuentes consultadas**\n\n"
@@ -175,32 +236,56 @@ Para obtener referencias específicas sobre un tema particular, puedes preguntar
                 response += f"• {author}\n"
             response += "\n"
         
+        # Agregar libros y publicaciones específicas
+        if books_found:
+            response += f"**📚 Libros y publicaciones consultadas:**\n"
+            for book in books_found:
+                response += f"• {book}\n"
+            response += "\n"
+        
         # Agregar instituciones si se encontraron
         if institutions_found:
             response += f"**🏛️ Instituciones y organismos de referencia:**\n"
             for institution in institutions_found:
-                response += f"• {institution}\n"
+                # Mejorar la presentación de instituciones conocidas
+                if "American Academy" in institution:
+                    response += f"• American Academy of Pediatrics (Academia Americana de Pediatría)\n"
+                elif "American Psychological" in institution:
+                    response += f"• American Psychological Association (Asociación Americana de Psicología)\n"
+                elif "World Health" in institution:
+                    response += f"• World Health Organization (Organización Mundial de la Salud)\n"
+                elif "Mindsight" in institution:
+                    response += f"• Mindsight Institute (Instituto dirigido por Daniel Siegel)\n"
+                else:
+                    response += f"• {institution}\n"
             response += "\n"
         
-        # Describir el tipo de evidencia
+        # Describir el tipo de evidencia de manera más específica
         if has_ref_chunks:
             response += "**📖 Tipos de evidencia consultada:**\n"
-            response += "• Estudios científicos revisados por pares\n"
-            response += "• Investigaciones en neurociencia del desarrollo\n"
-            response += "• Guías de organismos internacionales de salud\n"
-            response += "• Literatura especializada en pediatría y desarrollo infantil\n"
-            response += "• Enfoques de crianza respetuosa basados en evidencia\n\n"
+            response += "• Estudios científicos revisados por pares sobre desarrollo infantil\n"
+            response += "• Investigaciones en neurociencia del desarrollo y apego\n"
+            response += "• Guías clínicas de organismos internacionales de salud\n"
+            response += "• Literatura especializada en pediatría y psicología del desarrollo\n"
+            response += "• Metodologías de crianza respetuosa basadas en evidencia científica\n"
+            response += "• Protocolos y recomendaciones de academias médicas reconocidas\n\n"
         else:
-            response += "**📖 Fuentes de información:**\n"
-            response += "• Documentación especializada en desarrollo infantil\n"
-            response += "• Textos de referencia en pediatría y crianza\n"
-            response += "• Enfoques pedagógicos centrados en el niño\n\n"
+            response += "**📖 Base de conocimiento:**\n"
+            response += "• Documentación especializada en desarrollo infantil y crianza respetuosa\n"
+            response += "• Textos de referencia en pediatría, psicología y neurociencia del desarrollo\n"
+            response += "• Enfoques pedagógicos centrados en el niño y su desarrollo autónomo\n"
+            response += "• Investigaciones sobre apego, autorregulación y desarrollo emocional\n\n"
         
-        # Nota explicativa
-        if has_ref_chunks:
-            response += "💡 **Nota**: Estas referencias representan la base científica y técnica que fundamenta la información proporcionada.\n"
+        # Nota explicativa mejorada
+        if has_ref_chunks and (authors_found or books_found or institutions_found):
+            response += "💡 **Nota**: Estas referencias representan la base científica y técnica que fundamenta la información proporcionada. "
+            response += "Para obtener detalles específicos sobre alguna referencia, puedes preguntarme sobre un tema particular.\n"
+        elif has_ref_chunks:
+            response += "💡 **Nota**: La información se basa en documentación científica especializada. "
+            response += "Las referencias específicas se están procesando y estarán disponibles próximamente.\n"
         else:
-            response += "💡 **Nota**: Esta información proviene de documentación especializada. Las referencias específicas se están actualizando en el sistema.\n"
+            response += "💡 **Nota**: Esta información proviene de una amplia base de documentación especializada en desarrollo infantil. "
+            response += "Si necesitas referencias sobre un tema específico, puedes preguntarme directamente (ej: \"¿qué referencias tienes sobre sueño infantil?\").\n"
         
         return response
     
