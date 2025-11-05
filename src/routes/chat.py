@@ -13,7 +13,8 @@ from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
 from src.prompts.system.build_system_prompt_for_lumi import build_system_prompt_for_lumi
-from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES 
+from src.prompts.builder import build_structured_prompt
+from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, KEYWORDS_PROFILE_ES, detect_profile_keywords, print_detected_keywords_summary
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..services.knowledge_service import BabyKnowledgeService
@@ -567,7 +568,6 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     # 5️⃣ Reforzar el idioma en el mensaje del usuario
     user_message_with_lang = f"[Responder en {lang.upper()}] {payload.message}"
     messages.append({"role": "user", "content": user_message_with_lang})
->>>>>>>>> Temporary merge branch 2
 
     body = {
         "model": OPENAI_MODEL,
