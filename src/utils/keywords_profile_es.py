@@ -236,9 +236,13 @@ KEYWORDS_PROFILE_ES = {
             "adult_voice": "voz del adulto",
         },
         "night_feeding_presence": {
-            "yes": "sí",
+            "yes": "toma leche en la noche",
             "partial": "parcial",
-            "no": "no",
+            "no": "no toma leche en la noche",
+            "no": "no toma leche al momento de dormir",
+            "no": "no le doy leche antes de dormir",
+            "no": "no le doy pecho",
+            "no": "no le doy mamadera",
         },
         "sensory_profile": {
             "seeks_stimuli": "busca estímulos",
@@ -289,6 +293,7 @@ KEYWORDS_PROFILE_ES = {
             "family_bed": "cama familiar",
             "partial_co_sleeping": "colecho parcial",
             "own_bed": "su propia cama",
+            "own_bed": "su cama",
             "in_motion": "movimiento",
         },
         "night_routine_established": {
@@ -359,9 +364,13 @@ KEYWORDS_PROFILE_ES = {
             "contact": "contacto",
         },
         "night_feeding_presence": {
-            "yes": "sí",
+            "yes": "toma leche en la noche",
             "partial": "parcial",
-            "no": "no",
+            "no": "no toma leche en la noche",
+            "no": "no toma leche al momento de dormir",
+            "no": "no le doy leche antes de dormir",
+            "no": "no le doy pecho",
+            "no": "no le doy mamadera",
         },
         "night_weaning_process": {
             "in_progress": "en proceso de destete nocturno",
@@ -483,9 +492,13 @@ KEYWORDS_PROFILE_ES = {
             "by_self": "por sí mismo",
         },
         "night_feeding_presence": {
-            "yes": "sí",
+           "yes": "toma leche en la noche",
             "partial": "parcial",
-            "no": "no",
+            "no": "no toma leche en la noche",
+            "no": "no toma leche al momento de dormir",
+            "no": "no le doy leche antes de dormir",
+            "no": "no le doy pecho",
+            "no": "no le doy mamadera",
         },
         "night_feeding_frequency": {
             "once": "1 vez",

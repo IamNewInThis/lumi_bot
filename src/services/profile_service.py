@@ -133,39 +133,23 @@ class BabyProfileService:
         }
     
     @staticmethod
-    async def save_or_update_profile_keyword(
-        baby_id: str, 
+    async def get_or_create_baby_profile(
+        baby_id: str,
         category: str,
-        subcategory: str,
-        field_key: str,
-        field_path: str = None,  # ← NUEVO: path completo (ej: 'sleepwear.base.short_sleeve_bodysuit')
-        value_es: str = None,
-        value_en: str = None,
-        value_pt: str = None
-    ) -> Optional[Dict]:
+        profile_key: str
+    ) -> Optional[str]:
         """
-        Guarda o actualiza un keyword del perfil.
-        Estructura:
-        1. Busca/crea registro en baby_profile con (baby_id, category_id, key=field_path)
-        2. Busca/crea/actualiza registro en baby_profile_value con los valores traducidos
-        
-        IMPORTANTE: Ahora soporta campos anidados usando field_path.
-        Para estructuras simples: key = subcategory (ej: 'sleep_rhythm')
-        Para estructuras anidadas: key = field_path (ej: 'sleepwear.base.short_sleeve_bodysuit')
+        Obtiene o crea un registro en baby_profile.
         
         Args:
             baby_id: ID del bebé
             category: Categoría principal (ej: 'sleep and rest')
-            subcategory: Subcategoría (ej: 'sleep_rhythm', 'sleepwear')
-            field_key: Clave específica (ej: 'short_cycles', 'short_sleeve_bodysuit')
-            field_path: Path completo del campo (ej: 'sleepwear.base.short_sleeve_bodysuit')
-                       Si no se provee, usa subcategory como fallback
-            value_es: Valor en español
-            value_en: Valor en inglés
-            value_pt: Valor en portugués
+            profile_key: Key del perfil - puede ser:
+                        - Simple: 'sleep_rhythm', 'sleep_location'
+                        - Compuesto: 'sleep_location.own_bed', 'sleepwear.base.short_sleeve_bodysuit'
         
         Returns:
-            Dict con el registro guardado/actualizado en baby_profile_value o None si falla
+            UUID del registro baby_profile o None si falla
         """
         try:
             # 1. Obtener el UUID de la categoría principal
@@ -175,19 +159,7 @@ class BabyProfileService:
                 print(f"❌ [PROFILE] No se pudo obtener category_id para '{category}'")
                 return None
             
-            # 2. Determinar el key a usar en baby_profile
-            # Si hay field_path y contiene puntos (estructura anidada), usar el path completo
-            # Si no, usar subcategory para mantener compatibilidad con estructura simple
-            if field_path and '.' in field_path:
-                # Estructura anidada: usar path completo
-                profile_key = field_path  # ej: 'sleepwear.base.short_sleeve_bodysuit'
-                print(f"📊 [PROFILE] Usando field_path anidado: {profile_key}")
-            else:
-                # Estructura simple: usar subcategoría
-                profile_key = subcategory  # ej: 'sleep_rhythm'
-                print(f"📊 [PROFILE] Usando subcategory simple: {profile_key}")
-            
-            # 3. Buscar o crear registro en baby_profile
+            # 2. Buscar registro existente en baby_profile
             existing_profile = supabase.table("baby_profile")\
                 .select("id")\
                 .eq("baby_id", baby_id)\
@@ -198,32 +170,60 @@ class BabyProfileService:
             
             if existing_profile.data:
                 profile_id = existing_profile.data[0]["id"]
-                print(f"📌 [PROFILE] Usando baby_profile existente: {profile_id}")
-            else:
-                # Crear nuevo registro en baby_profile
-                new_profile = supabase.table("baby_profile")\
-                    .insert({
-                        "baby_id": baby_id,
-                        "category_id": category_id,
-                        "key": profile_key  # Ahora puede ser 'sleep_rhythm' o 'sleepwear.base.short_sleeve_bodysuit'
-                    })\
-                    .execute()
-                
-                if not new_profile.data:
-                    print(f"❌ [PROFILE] Error creando baby_profile para {category}.{profile_key}")
-                    return None
-                
-                profile_id = new_profile.data[0]["id"]
-                print(f"✅ [PROFILE] Creado baby_profile: {profile_id} ({category}.{profile_key})")
+                print(f"📌 [PROFILE] Usando baby_profile existente: {profile_id} ({category}.{profile_key})")
+                return profile_id
             
-            # 4. Buscar o crear/actualizar registro en baby_profile_value
+            # 3. Crear nuevo registro en baby_profile
+            new_profile = supabase.table("baby_profile")\
+                .insert({
+                    "baby_id": baby_id,
+                    "category_id": category_id,
+                    "key": profile_key
+                })\
+                .execute()
+            
+            if not new_profile.data:
+                print(f"❌ [PROFILE] Error creando baby_profile para {category}.{profile_key}")
+                return None
+            
+            profile_id = new_profile.data[0]["id"]
+            print(f"✅ [PROFILE] Creado baby_profile: {profile_id} ({category}.{profile_key})")
+            return profile_id
+            
+        except Exception as e:
+            print(f"❌ [PROFILE] Error en get_or_create_baby_profile: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    @staticmethod
+    async def save_or_update_profile_value(
+        baby_profile_id: str,
+        value_es: str = None,
+        value_en: str = None,
+        value_pt: str = None
+    ) -> Optional[Dict]:
+        """
+        Guarda o actualiza valores en baby_profile_value.
+        
+        Args:
+            baby_profile_id: UUID del registro en baby_profile
+            value_es: Valor en español
+            value_en: Valor en inglés
+            value_pt: Valor en portugués
+        
+        Returns:
+            Dict con el registro guardado/actualizado o None si falla
+        """
+        try:
+            # 1. Buscar valor existente por baby_profile_id
             existing_value = supabase.table("baby_profile_value")\
                 .select("*")\
-                .eq("profile_id", profile_id)\
+                .eq("baby_profile_id", baby_profile_id)\
                 .limit(1)\
                 .execute()
             
-            # Preparar datos de valores
+            # 2. Preparar datos de valores (solo incluir los que no son None)
             value_data = {}
             if value_es is not None:
                 value_data["value_es"] = value_es
@@ -233,7 +233,7 @@ class BabyProfileService:
                 value_data["value_pt"] = value_pt
             
             if existing_value.data:
-                # Actualizar valores existentes
+                # 3a. Actualizar valores existentes
                 value_id = existing_value.data[0]["id"]
                 
                 result = supabase.table("baby_profile_value")\
@@ -241,15 +241,15 @@ class BabyProfileService:
                     .eq("id", value_id)\
                     .execute()
                 
-                print(f"✅ [PROFILE] Actualizado baby_profile_value: {category}.{profile_key}")
+                print(f"✅ [PROFILE] Actualizado baby_profile_value")
                 print(f"   ES: {value_es}")
                 print(f"   EN: {value_en}")
                 print(f"   PT: {value_pt}")
                 return result.data[0] if result.data else None
             else:
-                # Crear nuevo valor
+                # 3b. Crear nuevo valor
                 insert_data = {
-                    "profile_id": profile_id,
+                    "baby_profile_id": baby_profile_id,
                     **value_data
                 }
                 
@@ -257,14 +257,14 @@ class BabyProfileService:
                     .insert(insert_data)\
                     .execute()
                 
-                print(f"✅ [PROFILE] Creado baby_profile_value: {category}.{profile_key}")
+                print(f"✅ [PROFILE] Creado baby_profile_value")
                 print(f"   ES: {value_es}")
                 print(f"   EN: {value_en}")
                 print(f"   PT: {value_pt}")
                 return result.data[0] if result.data else None
                 
         except Exception as e:
-            print(f"❌ [PROFILE] Error guardando/actualizando {category}.{subcategory}.{field_key}: {e}")
+            print(f"❌ [PROFILE] Error en save_or_update_profile_value: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -279,11 +279,15 @@ class BabyProfileService:
         Guarda múltiples keywords detectados del perfil.
         Automáticamente busca y guarda las traducciones en los 3 idiomas.
         
+        Estructura de guardado:
+        - baby_profile.key: Guarda solo la subcategoría base (ej: 'sleep_location')
+        - baby_profile_value: Guarda los valores traducidos asociados
+        
         Args:
             baby_id: ID del bebé
             detected_keywords: Lista de keywords detectados (de detect_profile_keywords)
                                Formato: [{'category': 'sleep and rest', 'subcategory': 'sleep_rhythm',
-                                         'field_key': 'short_cycles', 'field': 'sleep and rest.0_6.sleep_rhythm.short_cycles',
+                                         'field_key': 'short_cycles', 'field': 'sleep_rhythm.short_cycles',
                                          'keyword': 'ciclos cortos'}, ...]
             lang: Idioma del keyword detectado ('es', 'en', 'pt') - informativo
         
@@ -294,17 +298,16 @@ class BabyProfileService:
         
         for kw in detected_keywords:
             category = kw.get('category')  # ej: 'sleep and rest'
-            subcategory = kw.get('subcategory')  # ej: 'sleep_rhythm' o 'sleepwear'
-            field_key = kw.get('field_key')  # ej: 'short_cycles' o 'short_sleeve_bodysuit'
-            field_path = kw.get('field')  # Path desde subcategoría (ej: 'sleepwear.base.short_sleeve_bodysuit')
-            keyword = kw.get('keyword')  # Keyword detectado (ej: 'con body de manga corta')
+            subcategory = kw.get('subcategory')  # ej: 'sleep_rhythm', 'sleepwear'
+            field_key = kw.get('field_key')  # ej: 'short_cycles', 'short_sleeve_bodysuit'
+            field_path = kw.get('field')  # Path completo (ej: 'sleep_rhythm.short_cycles', 'sleepwear.base.short_sleeve_bodysuit')
+            keyword = kw.get('keyword')  # Keyword detectado (ej: 'ciclos cortos')
             
             if not category or not subcategory or not field_key or not field_path:
                 print(f"⚠️ [PROFILE] Keyword incompleto, saltando: {kw}")
                 continue
             
             # 🌍 Obtener traducciones en los 3 idiomas automáticamente
-            # Pasar el dict completo para que pueda construir el path completo
             translations = BabyProfileService.get_keyword_translations(keyword, kw)
             
             print(f"🌍 [PROFILE] Traducciones para {category}.{field_path}:")
@@ -312,13 +315,20 @@ class BabyProfileService:
             print(f"   EN: {translations.get('en', 'N/A')}")
             print(f"   PT: {translations.get('pt', 'N/A')}")
             
-            # Guardar con los valores en los 3 idiomas
-            result = await BabyProfileService.save_or_update_profile_keyword(
+            # 1️⃣ Obtener o crear baby_profile con solo la subcategoría base
+            baby_profile_id = await BabyProfileService.get_or_create_baby_profile(
                 baby_id=baby_id,
-                category=category,  # 'sleep and rest'
-                subcategory=subcategory,  # 'sleep_rhythm' o 'sleepwear'
-                field_key=field_key,  # 'short_cycles' o 'short_sleeve_bodysuit'
-                field_path=field_path,  # 'sleep_rhythm' o 'sleepwear.base.short_sleeve_bodysuit'
+                category=category,
+                profile_key=subcategory  # Solo la subcategoría base (ej: 'sleep_location', 'sleepwear')
+            )
+            
+            if not baby_profile_id:
+                print(f"❌ [PROFILE] No se pudo crear/obtener baby_profile para {category}.{subcategory}")
+                continue
+            
+            # 2️⃣ Guardar/actualizar el valor en baby_profile_value
+            result = await BabyProfileService.save_or_update_profile_value(
+                baby_profile_id=baby_profile_id,
                 value_es=translations.get('es'),
                 value_en=translations.get('en'),
                 value_pt=translations.get('pt')

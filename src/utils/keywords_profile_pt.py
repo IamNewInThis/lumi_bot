@@ -235,9 +235,13 @@ KEYWORDS_PROFILE_PT = {
                 "adult_voice": "voz do adulto",
             },
             "night_feeding_presence": {
-                "yes": "sim",
+                "yes": "toma leite à noite",
                 "partial": "parcial",
-                "no": "não",
+                "no": "não toma leite à noite",
+                "no": "não toma leite na hora de dormir",
+                "no": "não dou leite antes de dormir",
+                "no": "não dou peito",
+                "no": "não dou mamadeira",
             },
             "sensory_profile": {
                 "seeks_stimuli": "busca estímulos",
@@ -357,9 +361,13 @@ KEYWORDS_PROFILE_PT = {
                 "contact": "contato",
             },
             "night_feeding_presence": {
-                "yes": "sim",
-                "occasional": "ocasional",
-                "no": "não",
+                "yes": "toma leite à noite",
+                "partial": "parcial",
+                "no": "não toma leite à noite",
+                "no": "não toma leite na hora de dormir",
+                "no": "não dou leite antes de dormir",
+                "no": "não dou peito",
+                "no": "não dou mamadeira",
             },
         },
         # 24-48 meses
@@ -433,9 +441,13 @@ KEYWORDS_PROFILE_PT = {
                 "by_self": "sozinho",
             },
             "night_feeding_presence": {
-                "yes": "sim",
+                "yes": "toma leite à noite",
                 "partial": "parcial",
-                "no": "não",
+                "no": "não toma leite à noite",
+                "no": "não toma leite na hora de dormir",
+                "no": "não dou leite antes de dormir",
+                "no": "não dou peito",
+                "no": "não dou mamadeira",
             },
             "night_feeding_frequency": {
                 "once": "1 vez",
