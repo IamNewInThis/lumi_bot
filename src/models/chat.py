@@ -14,3 +14,7 @@ class KnowledgeConfirmRequest(BaseModel):
 class RoutineConfirmRequest(BaseModel):
     detected_routine: Dict
     confirm: bool  # True para guardar, False para ignorar
+
+class ProfileKeywordsConfirmRequest(BaseModel):
+    baby_id: str
+    keywords: List[Dict]
