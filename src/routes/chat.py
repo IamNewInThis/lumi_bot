@@ -6,14 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from pathlib import Path
 from typing import List
-from ..models.chat import ChatRequest, KnowledgeConfirmRequest
+from ..models.chat import ChatRequest, KnowledgeConfirmRequest, ProfileKeywordsConfirmRequest
 from ..auth import get_current_user
 from src.rag.utils import get_rag_context, get_rag_context_simple
 from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
 from src.prompts.system.build_system_prompt_for_lumi import build_system_prompt_for_lumi
-from src.prompts.builder import build_structured_prompt
 from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, KEYWORDS_PROFILE_ES, detect_profile_keywords, print_detected_keywords_summary
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
@@ -31,6 +30,7 @@ from ..services.chat_service import (
     detect_routine_in_user_message,
     detect_routine_in_response,
     detect_knowledge_in_message,
+    build_system_prompt,
     ROUTINE_KEYWORDS,
     NIGHT_WEANING_KEYWORDS,
     PARTNER_KEYWORDS,
@@ -292,14 +292,14 @@ async def get_user_profiles_and_babies(user_id, supabase_client, baby_id=None, b
                 f"- Bebé: {b['name']}, fecha de nacimiento {b['birthdate']}, "
                 f"edad: {edad_anios} años ({edad_meses} meses aprox.), "
                 f"etapa de desarrollo: {etapa_desarrollo}, "
-                # f"alimentación: {b.get('feeding', 'N/A')}, "
+                f"alimentación: {b.get('feeding', 'N/A')}, "
                 f"peso: {b.get('weight', 'N/A')} kg, "
                 f"altura: {b.get('height', 'N/A')} cm"
             )
 
     context = ""
     if profile_texts:
-        context += "Cuidador:\n" + "\n".join(profile_texts) + "\n\n"
+        context += "Perfiles:\n" + "\n".join(profile_texts) + "\n\n"
     if baby_texts:
         context += "Bebés:\n" + "\n".join(baby_texts) + "\n\n"
     
@@ -366,6 +366,75 @@ async def get_conversation_history(user_id, supabase_client, limit_per_role=4, b
 
     return formatted_history
 
+
+@router.post("/api/chat/confirm-profile-keywords")
+async def confirm_profile_keywords(
+    payload: ProfileKeywordsConfirmRequest,
+    user=Depends(get_current_user)
+):
+    """
+    Endpoint para confirmar y guardar keywords del perfil después de que el usuario 
+    presione el botón de confirmación en el frontend.
+    
+    Args:
+        payload: Objeto con baby_id y keywords a guardar
+        user: Usuario autenticado
+    
+    Returns:
+        Resultado del guardado con mensaje de confirmación
+    """
+    user_id = user["id"]
+    
+    try:
+        # Verificar que el bebé pertenece al usuario
+        baby_check = supabase.table("babies")\
+            .select("id, name")\
+            .eq("id", payload.baby_id)\
+            .eq("user_id", user_id)\
+            .single()\
+            .execute()
+        
+        if not baby_check.data:
+            raise HTTPException(status_code=403, detail="No tienes permiso para modificar este bebé")
+        
+        baby_name = baby_check.data.get('name', 'tu bebé')
+        
+        # Guardar los keywords
+        saved_count = await BabyProfileService.save_detected_keywords(
+            baby_id=payload.baby_id,
+            detected_keywords=payload.keywords,
+            lang='es'  # Por ahora fijo, podría venir del request
+        )
+        
+        if saved_count > 0:
+            print(f"✅ [PROFILE CONFIRM] Guardados {saved_count} keywords para {baby_name} (ID: {payload.baby_id})")
+            
+            return {
+                "success": True,
+                "saved_count": saved_count,
+                "baby_name": baby_name,
+                "message": f"✅ Guardé {saved_count} {'característica' if saved_count == 1 else 'características'} del perfil de {baby_name}"
+            }
+        else:
+            return {
+                "success": False,
+                "saved_count": 0,
+                "message": "No se pudo guardar la información. Por favor, intenta de nuevo."
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ [PROFILE CONFIRM] Error guardando keywords: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error al guardar las características: {str(e)}"
+        )
+
+
 @router.post("/api/chat")
 async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     if not payload.message.strip():
@@ -415,33 +484,35 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         for kw in detected_profile_keywords:
             print(f"   - {kw['category']}.{kw.get('field_key', kw['field'])}: '{kw['keyword']}'")
     
-    # 💾 Guardar automáticamente keywords del perfil detectados en baby_profile
+    # � Preparar keywords del perfil para confirmación (NO guardar automáticamente)
+    profile_keywords_pending = None
+    
     if detected_profile_keywords:
         # Determinar el baby_id correcto
         target_baby_id = None
+        target_baby_name = "tu bebé"
         
         # 1. Prioridad: baby_id del payload (si el usuario seleccionó un bebé específico)
         if payload.baby_id:
             target_baby_id = payload.baby_id
-            print(f"🎯 [PROFILE] Usando baby_id del payload: {target_baby_id}")
+            print(f"🎯 [PROFILE] baby_id identificado del payload: {target_baby_id}")
         # 2. Si no hay baby_id en payload pero hay bebés, usar el primero
         elif babies_context:
             target_baby_id = babies_context[0]['id']
-            print(f"⚠️ [PROFILE] No hay baby_id en payload, usando el primer bebé: {target_baby_id}")
+            target_baby_name = babies_context[0].get('name', 'tu bebé')
+            print(f"⚠️ [PROFILE] Usando el primer bebé: {target_baby_id}")
         
         if target_baby_id:
-            try:
-                saved_count = await BabyProfileService.save_detected_keywords(
-                    baby_id=target_baby_id,
-                    detected_keywords=detected_profile_keywords,
-                    lang=lang
-                )
-                if saved_count > 0:
-                    print(f"✅ [PROFILE] Guardados {saved_count} keywords del perfil para baby_id={target_baby_id}")
-            except Exception as e:
-                print(f"❌ [PROFILE] Error guardando keywords del perfil: {e}")
+            # Preparar datos para enviar al frontend (NO guardar aún)
+            profile_keywords_pending = {
+                "baby_id": target_baby_id,
+                "baby_name": target_baby_name,
+                "keywords": detected_profile_keywords,
+                "count": len(detected_profile_keywords)
+            }
+            print(f"📋 [PROFILE] Preparados {len(detected_profile_keywords)} keywords para confirmación del usuario")
         else:
-            print(f"⚠️ [PROFILE] No se pudo determinar baby_id para guardar keywords")
+            print(f"⚠️ [PROFILE] No se pudo determinar baby_id para keywords")
     
     # Verificar si es una respuesta de confirmación de preferencias (KNOWLEDGE)
     knowledge_confirmation_result = await handle_knowledge_confirmation(user_id, payload.message)
@@ -530,13 +601,19 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         filter_by_baby=filter_by_baby
     )
 
-    formatted_system_prompt = build_structured_prompt(
-        lang=lang,
-        user_context=user_context,
-        routines_context=routines_context,
-        rag_context=combined_rag_context,
-        extra_sections=prompt_sections,
-    )
+    # 2️⃣ Construir el prompt con el idioma detectado PRIMERO
+    lang_directive = build_system_prompt_for_lumi(lang)
+    
+    # 3️⃣ Construir el prompt general (Lumi + idioma)
+    formatted_system_prompt = await build_system_prompt(payload, user_context, routines_context, combined_rag_context)
+
+    # 4️⃣ Agregar directiva de idioma de forma más explícita y prioritaria
+    formatted_system_prompt = f"""🌐 INSTRUCCIÓN CRÍTICA DE IDIOMA:
+{lang_directive}
+
+IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No uses ningún otro idioma.
+
+{formatted_system_prompt}"""
 
     # Detectar tipo de consulta y agregar template específico
     specific_template = detect_consultation_type_and_load_template(payload.message)
@@ -572,7 +649,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     body = {
         "model": OPENAI_MODEL,
         "messages": messages,
-        "max_tokens": 2000,
+        "max_tokens": 1800,
         "temperature": 0.4,
         "top_p": 0.9,
     }
@@ -713,4 +790,8 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         # Continuar normalmente si falla la detección
         pass
 
-    return {"answer": assistant, "usage": usage}
+    return {
+        "answer": assistant, 
+        "usage": usage,
+        "profile_keywords": profile_keywords_pending  # Keywords pendientes de confirmación
+    }
