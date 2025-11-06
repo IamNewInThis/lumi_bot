@@ -1,7 +1,7 @@
 # src/services/profile_service.py
 from typing import Dict, List, Optional
 from ..rag.retriever import supabase
-from ..utils.keywords_rag import KEYWORDS_PROFILE_ES, KEYWORDS_PROFILE_EN, KEYWORDS_PROFILE_PT
+from ..utils.keywords_rag import KEYWORDS_BY_CATEGORY
 
 class BabyProfileService:
     """
@@ -79,17 +79,28 @@ class BabyProfileService:
             return None
     
     @staticmethod
-    def _find_keyword_in_dict(field_path: str, keywords_dict: Dict) -> Optional[str]:
+    def _find_keyword_in_dict(field_path: str, category_name: str, lang: str) -> Optional[str]:
         """
-        Busca un keyword en un diccionario de keywords anidado siguiendo un path.
+        Busca un keyword en el diccionario de una categoría específica siguiendo un path.
         
         Args:
             field_path: Path del campo (ej: 'sleep and rest.0_6.sleep_rhythm.short_cycles')
-            keywords_dict: Diccionario de keywords (KEYWORDS_PROFILE_ES/EN/PT)
+            category_name: Nombre de la categoría (ej: 'sleep and rest')
+            lang: Idioma ('es', 'en', 'pt')
         
         Returns:
             El valor del keyword encontrado o None
         """
+        # Obtener el diccionario de la categoría para ese idioma
+        if lang not in KEYWORDS_BY_CATEGORY:
+            return None
+        
+        if category_name not in KEYWORDS_BY_CATEGORY[lang]:
+            return None
+        
+        keywords_dict = KEYWORDS_BY_CATEGORY[lang][category_name]
+        
+        # Navegar el path
         parts = field_path.split('.')
         current = keywords_dict
         
@@ -98,6 +109,10 @@ class BabyProfileService:
                 current = current[part]
             else:
                 return None
+        
+        # Si es una lista, tomar el primer elemento
+        if isinstance(current, list) and len(current) > 0:
+            return current[0]
         
         return current if isinstance(current, str) else None
     
@@ -122,9 +137,9 @@ class BabyProfileService:
         full_path = f"{category}.{age_range}.{field}"
         
         # Buscar el valor directamente navegando el path en cada diccionario
-        value_es = BabyProfileService._find_keyword_in_dict(full_path, KEYWORDS_PROFILE_ES)
-        value_en = BabyProfileService._find_keyword_in_dict(full_path, KEYWORDS_PROFILE_EN)
-        value_pt = BabyProfileService._find_keyword_in_dict(full_path, KEYWORDS_PROFILE_PT)
+        value_es = BabyProfileService._find_keyword_in_dict(full_path, category, 'es')
+        value_en = BabyProfileService._find_keyword_in_dict(full_path, category, 'en')
+        value_pt = BabyProfileService._find_keyword_in_dict(full_path, category, 'pt')
         
         return {
             'es': value_es,
@@ -205,6 +220,7 @@ class BabyProfileService:
     ) -> Optional[Dict]:
         """
         Guarda o actualiza valores en baby_profile_value.
+        Verifica si el valor ya existe antes de crear uno nuevo.
         
         Args:
             baby_profile_id: UUID del registro en baby_profile
@@ -216,12 +232,39 @@ class BabyProfileService:
             Dict con el registro guardado/actualizado o None si falla
         """
         try:
-            # 1. Buscar valor existente por baby_profile_id
-            existing_value = supabase.table("baby_profile_value")\
-                .select("*")\
-                .eq("baby_profile_id", baby_profile_id)\
-                .limit(1)\
-                .execute()
+            # 1. Buscar si YA existe este valor específico (por value_es, value_en o value_pt)
+            # para evitar duplicados del mismo keyword
+            existing_value = None
+            
+            if value_es:
+                check = supabase.table("baby_profile_value")\
+                    .select("*")\
+                    .eq("baby_profile_id", baby_profile_id)\
+                    .eq("value_es", value_es)\
+                    .limit(1)\
+                    .execute()
+                if check.data:
+                    existing_value = check.data[0]
+            
+            if not existing_value and value_en:
+                check = supabase.table("baby_profile_value")\
+                    .select("*")\
+                    .eq("baby_profile_id", baby_profile_id)\
+                    .eq("value_en", value_en)\
+                    .limit(1)\
+                    .execute()
+                if check.data:
+                    existing_value = check.data[0]
+            
+            if not existing_value and value_pt:
+                check = supabase.table("baby_profile_value")\
+                    .select("*")\
+                    .eq("baby_profile_id", baby_profile_id)\
+                    .eq("value_pt", value_pt)\
+                    .limit(1)\
+                    .execute()
+                if check.data:
+                    existing_value = check.data[0]
             
             # 2. Preparar datos de valores (solo incluir los que no son None)
             value_data = {}
@@ -232,9 +275,9 @@ class BabyProfileService:
             if value_pt is not None:
                 value_data["value_pt"] = value_pt
             
-            if existing_value.data:
+            if existing_value:
                 # 3a. Actualizar valores existentes
-                value_id = existing_value.data[0]["id"]
+                value_id = existing_value["id"]
                 
                 result = supabase.table("baby_profile_value")\
                     .update(value_data)\
@@ -247,7 +290,7 @@ class BabyProfileService:
                 print(f"   PT: {value_pt}")
                 return result.data[0] if result.data else None
             else:
-                # 3b. Crear nuevo valor
+                # 3b. Crear nuevo valor (permite múltiples valores para el mismo baby_profile_id)
                 insert_data = {
                     "baby_profile_id": baby_profile_id,
                     **value_data
@@ -280,8 +323,8 @@ class BabyProfileService:
         Automáticamente busca y guarda las traducciones en los 3 idiomas.
         
         Estructura de guardado:
-        - baby_profile.key: Guarda solo la subcategoría base (ej: 'sleep_location')
-        - baby_profile_value: Guarda los valores traducidos asociados
+        - baby_profile.key: Guarda solo la subcategoría base (ej: 'sleep_rhythm', 'sensory_profile')
+        - baby_profile_value: Permite múltiples valores para el mismo baby_profile_id
         
         Args:
             baby_id: ID del bebé
@@ -316,17 +359,19 @@ class BabyProfileService:
             print(f"   PT: {translations.get('pt', 'N/A')}")
             
             # 1️⃣ Obtener o crear baby_profile con solo la subcategoría base
+            # Esto permite agrupar múltiples keywords bajo la misma categoría
             baby_profile_id = await BabyProfileService.get_or_create_baby_profile(
                 baby_id=baby_id,
                 category=category,
-                profile_key=subcategory  # Solo la subcategoría base (ej: 'sleep_location', 'sleepwear')
+                profile_key=subcategory  # Solo subcategoría (ej: 'sleep_rhythm', 'sensory_profile')
             )
             
             if not baby_profile_id:
                 print(f"❌ [PROFILE] No se pudo crear/obtener baby_profile para {category}.{subcategory}")
                 continue
             
-            # 2️⃣ Guardar/actualizar el valor en baby_profile_value
+            # 2️⃣ Guardar el valor en baby_profile_value
+            # La lógica actualizada permite múltiples valores para el mismo baby_profile_id
             result = await BabyProfileService.save_or_update_profile_value(
                 baby_profile_id=baby_profile_id,
                 value_es=translations.get('es'),

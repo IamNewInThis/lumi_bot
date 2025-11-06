@@ -2,7 +2,7 @@
 # 📋 PALAVRAS-CHAVE DO PERFIL DO BEBÊ - PORTUGUÊS
 # ============================================================================
 
-KEYWORDS_PROFILE_PT = {
+KEYWORDS_SLEEP_PT = {
     # ========================================================================
     # 💤 SONO E DESCANSO
     # ========================================================================
@@ -237,11 +237,13 @@ KEYWORDS_PROFILE_PT = {
             "night_feeding_presence": {
                 "yes": "toma leite à noite",
                 "partial": "parcial",
-                "no": "não toma leite à noite",
-                "no": "não toma leite na hora de dormir",
-                "no": "não dou leite antes de dormir",
-                "no": "não dou peito",
-                "no": "não dou mamadeira",
+                "no": [
+                    "não toma leite à noite",
+                    "não toma leite na hora de dormir",
+                    "não dou leite antes de dormir",
+                    "não dou peito",
+                    "não dou mamadeira"
+                ],
             },
             "sensory_profile": {
                 "seeks_stimuli": "busca estímulos",
@@ -363,11 +365,13 @@ KEYWORDS_PROFILE_PT = {
             "night_feeding_presence": {
                 "yes": "toma leite à noite",
                 "partial": "parcial",
-                "no": "não toma leite à noite",
-                "no": "não toma leite na hora de dormir",
-                "no": "não dou leite antes de dormir",
-                "no": "não dou peito",
-                "no": "não dou mamadeira",
+                "no": [
+                    "não toma leite à noite",
+                    "não toma leite na hora de dormir",
+                    "não dou leite antes de dormir",
+                    "não dou peito",
+                    "não dou mamadeira"
+                ],
             },
         },
         # 24-48 meses
@@ -443,11 +447,13 @@ KEYWORDS_PROFILE_PT = {
             "night_feeding_presence": {
                 "yes": "toma leite à noite",
                 "partial": "parcial",
-                "no": "não toma leite à noite",
-                "no": "não toma leite na hora de dormir",
-                "no": "não dou leite antes de dormir",
-                "no": "não dou peito",
-                "no": "não dou mamadeira",
+                "no": [
+                    "não toma leite à noite",
+                    "não toma leite na hora de dormir",
+                    "não dou leite antes de dormir",
+                    "não dou peito",
+                    "não dou mamadeira"
+                ],
             },
             "night_feeding_frequency": {
                 "once": "1 vez",
@@ -657,41 +663,4 @@ KEYWORDS_PROFILE_PT = {
             },
         },
     },
-
-    # ========================================================================
-    # 🛁 CUIDADOS DIÁRIOS
-    # ========================================================================
-    # 🛁 CUIDADOS DIÁRIOS
-    # ========================================================================
-    "daily care": {
-        # TODO: Implementar
-    },
-
-    # ========================================================================
-    # 🧩 AUTONOMIA E DESENVOLVIMENTO
-    # ========================================================================
-    "autonomy and development": {
-        # TODO: Implementar
-    },
-    
-    # ========================================================================
-    # ❤️ EMOÇÕES, VÍNCULOS E CRIAÇÃO RESPEITOSA
-    # ========================================================================
-    "emotions bonds and parenting": {
-        # TODO: Implementar
-    },
-    
-    # ========================================================================
-    # 🏠 CONTEXTO FAMILIAR E AMBIENTE
-    # ========================================================================
-    "family context and environment": {
-        # TODO: Implementar
-    },
-    
-    # ========================================================================
-    # ✈️ VIAGENS E DESLOCAMENTOS
-    # ========================================================================
-    "travel and mobility": {
-        # TODO: Implementar
-    },
-}
+}  # Fim sleep and rest

@@ -1,9 +1,58 @@
 # ============================================================================
-# Imports de diccionarios de keywords por idioma
+# Imports de diccionarios de keywords por categoría e idioma
 # ============================================================================
-from .keywords_profile_es import KEYWORDS_PROFILE_ES
-from .keywords_profile_en import KEYWORDS_PROFILE_EN
-from .keywords_profile_pt import KEYWORDS_PROFILE_PT
+from .keywords.sleep_and_rest.keyword_sleep_and_rest_ES import KEYWORDS_SLEEP_ES
+from .keywords.sleep_and_rest.keyword_sleep_and_rest_EN import KEYWORDS_SLEEP_EN
+from .keywords.sleep_and_rest.keyword_sleep_and_rest_PT import KEYWORDS_SLEEP_PT
+
+# TODO: Importar cuando estén listos
+from .keywords.daily_care.keywords_daily_care_ES import KEYWORDS_DAILY_CARE_ES
+from .keywords.daily_care.keywords_daily_care_EN import KEYWORDS_DAILY_CARE_EN
+from .keywords.daily_care.keywords_daily_care_PT import KEYWORDS_DAILY_CARE_PT
+
+# from .keywords.autonomy_and_development.keyword_autonomy_and_development_ES import KEYWORDS_AUTONOMY_ES
+# from .keywords.autonomy_and_development.keyword_autonomy_and_development_EN import KEYWORDS_AUTONOMY_EN
+# from .keywords.autonomy_and_development.keyword_autonomy_and_development_PT import KEYWORDS_AUTONOMY_PT
+
+# from .keywords.emotions_bond_and_parenting.keyword_emotions_bond_and_parenting_ES import KEYWORDS_EMOTIONS_ES
+# from .keywords.emotions_bond_and_parenting.keyword_emotions_bond_and_parenting_EN import KEYWORDS_EMOTIONS_EN
+# from .keywords.emotions_bond_and_parenting.keyword_emotions_bond_and_parenting_PT import KEYWORDS_EMOTIONS_PT
+
+# from .keywords.family_context_and_enviroment.keyword_family_context_and_enviroment_ES import KEYWORDS_FAMILY_ES
+# from .keywords.family_context_and_enviroment.keyword_family_context_and_enviroment_EN import KEYWORDS_FAMILY_EN
+# from .keywords.family_context_and_enviroment.keyword_family_context_and_enviroment_PT import KEYWORDS_FAMILY_PT
+
+# from .keywords.travel_and_mobility.keyword_travel_and_mobility_ES import KEYWORDS_TRAVEL_ES
+# from .keywords.travel_and_mobility.keyword_travel_and_mobility_EN import KEYWORDS_TRAVEL_EN
+# from .keywords.travel_and_mobility.keyword_travel_and_mobility_PT import KEYWORDS_TRAVEL_PT
+
+# Diccionario consolidado de todas las categorías por idioma
+KEYWORDS_BY_CATEGORY = {
+    'es': {
+        'sleep and rest': KEYWORDS_SLEEP_ES,
+        'daily cares': KEYWORDS_DAILY_CARE_ES,
+        # 'autonomy and development': KEYWORDS_AUTONOMY_ES,
+        # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_ES,
+        # 'family context and environment': KEYWORDS_FAMILY_ES,
+        # 'travel and mobility': KEYWORDS_TRAVEL_ES,
+    },
+    'en': {
+        'sleep and rest': KEYWORDS_SLEEP_EN,
+        'daily cares': KEYWORDS_DAILY_CARE_EN,
+        # 'autonomy and development': KEYWORDS_AUTONOMY_EN,
+        # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_EN,
+        # 'family context and environment': KEYWORDS_FAMILY_EN,
+        # 'travel and mobility': KEYWORDS_TRAVEL_EN,
+    },
+    'pt': {
+        'sleep and rest': KEYWORDS_SLEEP_PT,
+        'daily cares': KEYWORDS_DAILY_CARE_PT,
+        # 'autonomy and development': KEYWORDS_AUTONOMY_PT,
+        # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_PT,
+        # 'family context and environment': KEYWORDS_FAMILY_PT,
+        # 'travel and mobility': KEYWORDS_TRAVEL_PT,
+    }
+}
 
 # ============================================================================
 # Keywords para RAG (búsqueda de documentos)
@@ -21,8 +70,6 @@ keywords = {
 
     # 🚫 CASTIGOS Y CONSECUENCIAS
     'castigos': ['disciplina_sin_lagrimas.pdf'],
-    'castigando':['el_cerebro_del_nino.pdf', 'disciplina_sin_lagrimas.pdf'],
-    'reteniendo': ['el_cerebro_del_nino.pdf', 'disciplina_sin_lagrimas.pdf'],
     'consecuencias': ['disciplina_sin_lagrimas.pdf', 'limites.pdf'],
     'regaños': ['disciplina_sin_lagrimas.pdf'],
     'correcciones': ['disciplina_sin_lagrimas.pdf'],
@@ -309,15 +356,15 @@ def get_age_range_key(age_months: int) -> str:
         String con el rango de edad ('0_6', '6_12', '12_24', '24_48', '48_84')
     """
     if age_months <= 6:
-        return '0_6'
+        return '0_6', '0_84'
     elif age_months <= 12:
-        return '6_12'
+        return '6_12', '0_84'
     elif age_months <= 24:
-        return '12_24'
+        return '12_24', '0_84'
     elif age_months <= 48:
-        return '24_48'
+        return '24_48', '0_84'
     else:
-        return '48_84'
+        return '48_84', '0_84'
 
 
 def get_age_appropriate_categories(age_months: int) -> set:
@@ -337,15 +384,15 @@ def get_age_appropriate_categories(age_months: int) -> set:
         print(f"[AGE FILTER] Edad inválida ({age_months}), retornando set vacío")
         return set()
     
-    age_range = get_age_range_key(age_months)
-    print(f"[AGE FILTER] {age_months} meses -> Rango: {age_range}")
+    age_ranges = get_age_range_key(age_months)  # Retorna tupla: ('6_12', '0_84')
+    print(f"[AGE FILTER] {age_months} meses -> Rangos: {age_ranges}")
     
     # Con la nueva estructura, retornamos todas las categorías principales
     # El filtro de edad se aplica automáticamente porque cada categoría tiene sus propios rangos
     # IMPORTANTE: Usar las claves en inglés (sin guiones bajos) que están en los diccionarios
     return {
         'sleep and rest',
-        'daily care',
+        'daily cares',
         'autonomy and development',
         'emotions bonds and parenting',
         'family context and environment',
@@ -371,6 +418,12 @@ def detect_profile_keywords(message: str, lang: str = 'es', verbose: bool = True
         Lista de diccionarios con información de keywords encontradas
         Formato: [{'category': str, 'age_range': str, 'field': str, 'field_key': str, 'keyword': str}, ...]
     """
+    if verbose:
+        print(f"🔍 [PROFILE DETECT] Iniciando detección...")
+        print(f"   Mensaje: '{message[:100]}'")
+        print(f"   Edad: {age_months} meses")
+        print(f"   Categorías disponibles: {list(KEYWORDS_BY_CATEGORY.get('es', {}).keys())}")
+    
     detected_keywords = []
     detected_categories = set()
     message_lower = message.lower()
@@ -378,22 +431,20 @@ def detect_profile_keywords(message: str, lang: str = 'es', verbose: bool = True
     # ⚠️ Si no hay edad, retornar lista vacía (no detectar nada por seguridad)
     if age_months is None:
         if verbose:
-            print(f"[AGE FILTER] No hay edad del bebé disponible, NO se detectarán keywords del perfil")
+            print(f"❌ [AGE FILTER] No hay edad del bebé disponible, NO se detectarán keywords del perfil")
+            print(f"   SOLUCIÓN: Asegúrate de que el bebé tiene una fecha de nacimiento registrada")
         return []
     
-    # Obtener rango de edad y categorías permitidas
-    age_range = get_age_range_key(age_months)
+    # Obtener rangos de edad (específico + común 0_84) y categorías permitidas
+    age_ranges = get_age_range_key(age_months)  # Retorna tupla: ('6_12', '0_84')
     allowed_categories = get_age_appropriate_categories(age_months)
     
     if verbose:
-        print(f"[AGE FILTER] Edad: {age_months} meses -> Rango: {age_range}")
+        print(f"✅ [AGE FILTER] Edad: {age_months} meses -> Rangos: {age_ranges}")
+        print(f"   Categorías permitidas: {allowed_categories}")
     
     # 🌍 Buscar en los 3 idiomas para evitar problemas de detección de idioma
-    keywords_dicts = [
-        ('es', KEYWORDS_PROFILE_ES),
-        ('en', KEYWORDS_PROFILE_EN),
-        ('pt', KEYWORDS_PROFILE_PT)
-    ]
+    # Ahora usando KEYWORDS_BY_CATEGORY que tiene keywords específicos por categoría
     
     def search_in_dict(data, category_path="", main_category=None, current_age_range=None, subcategory=None):
         """
@@ -437,11 +488,11 @@ def detect_profile_keywords(message: str, lang: str = 'es', verbose: bool = True
                         # Buscar dentro de esta categoría
                         search_in_dict(value, current_path, main_category=key)
                 
-                # Nivel 2: Rango de edad (ej: '0_6', '6_12')
+                # Nivel 2: Rango de edad (ej: '0_6', '6_12', '0_84')
                 elif not current_age_range:
-                    # Verificar si es un rango de edad
-                    if key == age_range and isinstance(value, dict):
-                        # Este es el rango correcto, buscar dentro
+                    # Verificar si es uno de los rangos de edad permitidos (específico o común)
+                    if key in age_ranges and isinstance(value, dict):
+                        # Este es un rango válido (específico o 0_84), buscar dentro
                         search_in_dict(value, current_path, main_category=main_category, current_age_range=key)
                     elif isinstance(value, dict):
                         # Seguir buscando otros niveles
@@ -515,9 +566,14 @@ def detect_profile_keywords(message: str, lang: str = 'es', verbose: bool = True
                                             print(f">> {main_category} > {current_age_range} > {main_subcategory}")
                                             detected_categories.add(category_key)
     
-    # 🌍 Buscar en todos los idiomas (ES, EN, PT)
-    for lang_code, keywords_dict in keywords_dicts:
-        search_in_dict(keywords_dict)
+    # 🌍 Buscar en todos los idiomas (ES, EN, PT) y todas las categorías
+    # Iterar sobre cada idioma y cada categoría dentro de KEYWORDS_BY_CATEGORY
+    for lang_code in ['es', 'en', 'pt']:
+        if lang_code in KEYWORDS_BY_CATEGORY:
+            for category_name, category_keywords in KEYWORDS_BY_CATEGORY[lang_code].items():
+                # category_keywords es el diccionario completo de esa categoría
+                # Ej: KEYWORDS_SLEEP_ES que contiene {"sleep and rest": {...}}
+                search_in_dict(category_keywords)
     
     # Eliminar duplicados (puede que un keyword esté en múltiples idiomas)
     # Usar el campo 'field' como clave única

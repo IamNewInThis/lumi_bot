@@ -13,7 +13,7 @@ from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
 from src.prompts.system.build_system_prompt_for_lumi import build_system_prompt_for_lumi
-from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, KEYWORDS_PROFILE_ES, detect_profile_keywords, print_detected_keywords_summary
+from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, detect_profile_keywords, print_detected_keywords_summary
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..services.knowledge_service import BabyKnowledgeService
@@ -683,7 +683,8 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
             if attempt == max_retries - 1:  # Último intento
                 return {
                     "answer": "Lo siento, el sistema está experimentando demoras. Por favor, intenta reformular tu pregunta de manera más breve o inténtalo de nuevo en unos momentos.",
-                    "usage": {}
+                    "usage": {},
+                    "profile_keywords": profile_keywords_pending 
                 }
             # Esperar antes del siguiente intento
             import asyncio
@@ -694,7 +695,8 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
             if attempt == max_retries - 1:
                 return {
                     "answer": "Hubo un problema técnico. Por favor, intenta de nuevo en unos momentos.",
-                    "usage": {}
+                    "usage": {},
+                    "profile_keywords": profile_keywords_pending 
                 }
             continue
 
@@ -705,7 +707,6 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
     assistant = format_llm_output(assistant)
     
     usage = data.get("usage", {})
-
     # Variables para controlar el flujo de detección dual
     routine_detected_and_saved = False
     assistant_with_routine_confirmation = ""
@@ -728,7 +729,8 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
             
             return {
                 "answer": assistant_with_routine_confirmation, 
-                "usage": usage
+                "usage": usage,
+                "profile_keywords": profile_keywords_pending 
             }
         
     except Exception as e:
@@ -755,7 +757,8 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
             
             return {
                 "answer": assistant_with_routine_confirmation, 
-                "usage": usage
+                "usage": usage,
+                "profile_keywords": profile_keywords_pending 
             }
             
     except Exception as e:
@@ -780,7 +783,8 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
             
             return {
                 "answer": assistant_with_confirmation, 
-                "usage": usage
+                "usage": usage,
+                "profile_keywords": profile_keywords_pending 
             }
         
     except Exception as e:

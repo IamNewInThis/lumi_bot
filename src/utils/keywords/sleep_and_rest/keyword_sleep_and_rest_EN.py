@@ -1,8 +1,4 @@
-# ============================================================================
-# 📋 BABY PROFILE KEYWORDS - ENGLISH
-# ============================================================================
-
-KEYWORDS_PROFILE_EN = {
+KEYWORDS_SLEEP_EN = {
     # ========================================================================
     # 💤 SLEEP AND REST
     # ========================================================================
@@ -237,11 +233,13 @@ KEYWORDS_PROFILE_EN = {
             "night_feeding_presence": {
                 "yes": "drinks milk at night",
                 "partial": "Drinks milk partially at night",
-                "no": "does not drink milk at night",
-                "no": "does not drink milk at bedtime",
-                "no": "I don't give milk before sleeping",
-                "no": "I don't breastfeed",
-                "no": "I don't give bottle",
+                "no": [
+                    "does not drink milk at night",
+                    "does not drink milk at bedtime",
+                    "I don't give milk before sleeping",
+                    "I don't breastfeed",
+                    "I don't give bottle"
+                ],
             },
             "sensory_profile": {
                 "seeks_stimuli": "seeks stimuli",
@@ -363,11 +361,13 @@ KEYWORDS_PROFILE_EN = {
             "night_feeding_presence": {
                 "yes": "drinks milk at night",
                 "partial": "partial",
-                "no": "does not drink milk at night",
-                "no": "does not drink milk at bedtime",
-                "no": "I don't give milk before sleeping",
-                "no": "I don't breastfeed",
-                "no": "I don't give bottle",
+                "no": [
+                    "does not drink milk at night",
+                    "does not drink milk at bedtime",
+                    "I don't give milk before sleeping",
+                    "I don't breastfeed",
+                    "I don't give bottle"
+                ],
             },
         },
         # 24-48 months
@@ -443,11 +443,13 @@ KEYWORDS_PROFILE_EN = {
             "night_feeding_presence": {
                 "yes": "drinks milk at night",
                 "partial": "partial",
-                "no": "does not drink milk at night",
-                "no": "does not drink milk at bedtime",
-                "no": "I don't give milk before sleeping",
-                "no": "I don't breastfeed",
-                "no": "I don't give bottle",
+                "no": [
+                    "does not drink milk at night",
+                    "does not drink milk at bedtime",
+                    "I don't give milk before sleeping",
+                    "I don't breastfeed",
+                    "I don't give bottle"
+                ],
             },
             "night_feeding_frequency": {
                 "once": "once",
@@ -657,41 +659,4 @@ KEYWORDS_PROFILE_EN = {
             },
         },
     },
-
-    # ========================================================================
-    # 🛁 DAILY CARE
-    # ========================================================================
-    # 🛁 DAILY CARE
-    # ========================================================================
-    "daily care": {
-        # TODO: Implement
-    },
-
-    # ========================================================================
-    # 🧩 AUTONOMY AND DEVELOPMENT
-    # ========================================================================
-    "autonomy and development": {
-        # TODO: Implement
-    },
-    
-    # ========================================================================
-    # ❤️ EMOTIONS, BONDS AND RESPECTFUL PARENTING
-    # ========================================================================
-    "emotions bonds and parenting": {
-        # TODO: Implement
-    },
-    
-    # ========================================================================
-    # 🏠 FAMILY CONTEXT AND ENVIRONMENT
-    # ========================================================================
-    "family context and environment": {
-        # TODO: Implement
-    },
-    
-    # ========================================================================
-    # ✈️ TRAVEL AND TRIPS
-    # ========================================================================
-    "travel and mobility": {
-        # TODO: Implement
-    },
-}
+}  # End sleep_and_rest
