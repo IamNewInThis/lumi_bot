@@ -10,28 +10,28 @@ from .keywords.daily_care.keywords_daily_care_ES import KEYWORDS_DAILY_CARE_ES
 from .keywords.daily_care.keywords_daily_care_EN import KEYWORDS_DAILY_CARE_EN
 from .keywords.daily_care.keywords_daily_care_PT import KEYWORDS_DAILY_CARE_PT
 
-# from .keywords.autonomy_and_development.keyword_autonomy_and_development_ES import KEYWORDS_AUTONOMY_ES
-# from .keywords.autonomy_and_development.keyword_autonomy_and_development_EN import KEYWORDS_AUTONOMY_EN
-# from .keywords.autonomy_and_development.keyword_autonomy_and_development_PT import KEYWORDS_AUTONOMY_PT
+from .keywords.autonomy_and_development.keywords_autonomy_and_development_ES import KEYWORDS_DEVELOPMENT_ES
+from .keywords.autonomy_and_development.keywords_autonomy_and_development_EN import KEYWORDS_DEVELOPMENT_EN
+from .keywords.autonomy_and_development.keywords_autonomy_and_development_PT import KEYWORDS_DEVELOPMENT_PT
 
-# from .keywords.emotions_bond_and_parenting.keyword_emotions_bond_and_parenting_ES import KEYWORDS_EMOTIONS_ES
-# from .keywords.emotions_bond_and_parenting.keyword_emotions_bond_and_parenting_EN import KEYWORDS_EMOTIONS_EN
-# from .keywords.emotions_bond_and_parenting.keyword_emotions_bond_and_parenting_PT import KEYWORDS_EMOTIONS_PT
+# from .keywords.emotions_bond_and_parenting.keywords_emotions_bond_and_parenting_ES import KEYWORDS_EMOTIONS_ES
+# from .keywords.emotions_bond_and_parenting.keywords_emotions_bond_and_parenting_EN import KEYWORDS_EMOTIONS_EN
+# from .keywords.emotions_bond_and_parenting.keywords_emotions_bond_and_parenting_PT import KEYWORDS_EMOTIONS_PT
 
-# from .keywords.family_context_and_enviroment.keyword_family_context_and_enviroment_ES import KEYWORDS_FAMILY_ES
-# from .keywords.family_context_and_enviroment.keyword_family_context_and_enviroment_EN import KEYWORDS_FAMILY_EN
-# from .keywords.family_context_and_enviroment.keyword_family_context_and_enviroment_PT import KEYWORDS_FAMILY_PT
+# from .keywords.family_context_and_enviroment.keywords_family_context_and_enviroment_ES import KEYWORDS_FAMILY_ES
+# from .keywords.family_context_and_enviroment.keywords_family_context_and_enviroment_EN import KEYWORDS_FAMILY_EN
+# from .keywords.family_context_and_enviroment.keywords_family_context_and_enviroment_PT import KEYWORDS_FAMILY_PT
 
-# from .keywords.travel_and_mobility.keyword_travel_and_mobility_ES import KEYWORDS_TRAVEL_ES
-# from .keywords.travel_and_mobility.keyword_travel_and_mobility_EN import KEYWORDS_TRAVEL_EN
-# from .keywords.travel_and_mobility.keyword_travel_and_mobility_PT import KEYWORDS_TRAVEL_PT
+# from .keywords.travel_and_mobility.keywords_travel_and_mobility_ES import KEYWORDS_TRAVEL_ES
+# from .keywords.travel_and_mobility.keywords_travel_and_mobility_EN import KEYWORDS_TRAVEL_EN
+# from .keywords.travel_and_mobility.keywords_travel_and_mobility_PT import KEYWORDS_TRAVEL_PT
 
 # Diccionario consolidado de todas las categorías por idioma
 KEYWORDS_BY_CATEGORY = {
     'es': {
         'sleep and rest': KEYWORDS_SLEEP_ES,
         'daily cares': KEYWORDS_DAILY_CARE_ES,
-        # 'autonomy and development': KEYWORDS_AUTONOMY_ES,
+        'autonomy and development': KEYWORDS_DEVELOPMENT_ES,
         # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_ES,
         # 'family context and environment': KEYWORDS_FAMILY_ES,
         # 'travel and mobility': KEYWORDS_TRAVEL_ES,
@@ -39,7 +39,7 @@ KEYWORDS_BY_CATEGORY = {
     'en': {
         'sleep and rest': KEYWORDS_SLEEP_EN,
         'daily cares': KEYWORDS_DAILY_CARE_EN,
-        # 'autonomy and development': KEYWORDS_AUTONOMY_EN,
+        'autonomy and development': KEYWORDS_DEVELOPMENT_EN,
         # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_EN,
         # 'family context and environment': KEYWORDS_FAMILY_EN,
         # 'travel and mobility': KEYWORDS_TRAVEL_EN,
@@ -47,7 +47,7 @@ KEYWORDS_BY_CATEGORY = {
     'pt': {
         'sleep and rest': KEYWORDS_SLEEP_PT,
         'daily cares': KEYWORDS_DAILY_CARE_PT,
-        # 'autonomy and development': KEYWORDS_AUTONOMY_PT,
+        'autonomy and development': KEYWORDS_DEVELOPMENT_PT,
         # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_PT,
         # 'family context and environment': KEYWORDS_FAMILY_PT,
         # 'travel and mobility': KEYWORDS_TRAVEL_PT,

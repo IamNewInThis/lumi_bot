@@ -84,8 +84,8 @@ class BabyProfileService:
         Busca un keyword en el diccionario de una categoría específica siguiendo un path.
         
         Args:
-            field_path: Path del campo (ej: 'sleep and rest.0_6.sleep_rhythm.short_cycles')
-            category_name: Nombre de la categoría (ej: 'sleep and rest')
+            field_path: Path del campo completo (ej: 'autonomy and development.6_12.coordinacion_y_precision_manual.no_iniciado')
+            category_name: Nombre de la categoría (ej: 'autonomy and development')
             lang: Idioma ('es', 'en', 'pt')
         
         Returns:
@@ -93,28 +93,46 @@ class BabyProfileService:
         """
         # Obtener el diccionario de la categoría para ese idioma
         if lang not in KEYWORDS_BY_CATEGORY:
+            print(f"⚠️ [TRANSLATION] Idioma '{lang}' no encontrado en KEYWORDS_BY_CATEGORY")
             return None
         
         if category_name not in KEYWORDS_BY_CATEGORY[lang]:
+            print(f"⚠️ [TRANSLATION] Categoría '{category_name}' no encontrada en idioma '{lang}'")
+            print(f"   Categorías disponibles: {list(KEYWORDS_BY_CATEGORY[lang].keys())}")
             return None
         
         keywords_dict = KEYWORDS_BY_CATEGORY[lang][category_name]
         
-        # Navegar el path
+        # El diccionario tiene estructura: {category: {age_range: {field: ...}}}
+        # Ejemplo: KEYWORDS_DEVELOPMENT_ES = {"autonomy and development": {"6_12": {...}}}
+        # Necesitamos navegar desde la categoría interna
+        
+        # Navegar el path completo
         parts = field_path.split('.')
         current = keywords_dict
         
-        for part in parts:
+        print(f"🔍 [TRANSLATION DEBUG] Lang: {lang}, Path: {field_path}")
+        print(f"   Navegando parts: {parts}")
+        
+        for i, part in enumerate(parts):
             if isinstance(current, dict) and part in current:
                 current = current[part]
+                print(f"   ✅ Part {i} '{part}' encontrado")
             else:
+                print(f"   ❌ Part {i} '{part}' NO encontrado")
+                if isinstance(current, dict):
+                    print(f"      Keys disponibles: {list(current.keys())[:5]}")
                 return None
         
         # Si es una lista, tomar el primer elemento
         if isinstance(current, list) and len(current) > 0:
-            return current[0]
+            result = current[0]
+            print(f"   ✅ Resultado (lista): '{result}'")
+            return result
         
-        return current if isinstance(current, str) else None
+        result = current if isinstance(current, str) else None
+        print(f"   {'✅' if result else '❌'} Resultado (string): '{result}'")
+        return result
     
     @staticmethod
     def get_keyword_translations(keyword: str, detected_kw: Dict) -> Dict[str, Optional[str]]:
