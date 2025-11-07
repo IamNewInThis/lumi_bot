@@ -110,6 +110,12 @@ KEYWORDS_DAILY_CARE_ES = {
                     "gauze": [
                         "limpieza con gasa",
                         "gasa húmeda",
+                        "gasa humedecida",
+                        "lavar con gasa",
+                        "lavamos con gasa",
+                        "lavar los dientes con gasa",
+                        "lavamos los dientes con gasa",
+                        "limpiar dientes con gasa",
                         "sin pasta",
                         "solo con agua"
                     ],

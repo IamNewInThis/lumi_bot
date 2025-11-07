@@ -13,7 +13,7 @@ from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
 from src.prompts.system.build_system_prompt_for_lumi import build_system_prompt_for_lumi
-from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, detect_profile_keywords, print_detected_keywords_summary
+from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, detect_profile_keywords, detect_profile_keywords_fuzzy, print_detected_keywords_summary
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..services.knowledge_service import BabyKnowledgeService
@@ -473,16 +473,18 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         baby_age_months = calcular_meses(active_baby['birthdate'])
         print(f"👶 [AGE] Bebé activo: {active_baby.get('name', 'Sin nombre')} - Edad: {baby_age_months} meses")
     
-    # 🎯 Detectar keywords del perfil del bebé (con filtro de edad si está disponible)
-    detected_profile_keywords = detect_profile_keywords(
+    # 🎯 Detectar keywords del perfil del bebé (con fuzzy matching y filtro de edad)
+    detected_profile_keywords = detect_profile_keywords_fuzzy(
         payload.message, 
         lang, 
-        age_months=baby_age_months
+        threshold=90,  # Umbral alto (90%) para evitar falsos positivos
+        age_months=baby_age_months,
+        verbose=True
     )
     if detected_profile_keywords:
-        print(f"🔍 [PROFILE KEYWORDS] Se detectaron {len(detected_profile_keywords)} keyword(s) del perfil:")
+        print(f"🔍 [PROFILE KEYWORDS FUZZY] Se detectaron {len(detected_profile_keywords)} keyword(s) del perfil:")
         for kw in detected_profile_keywords:
-            print(f"   - {kw['category']}.{kw.get('field_key', kw['field'])}: '{kw['keyword']}'")
+            print(f"   - {kw['category']}.{kw.get('field_key', kw['field'])}: '{kw['keyword']}' (similitud: {kw.get('similarity', 'N/A')}%)")
     
     # � Preparar keywords del perfil para confirmación (NO guardar automáticamente)
     profile_keywords_pending = None

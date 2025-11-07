@@ -1,4 +1,9 @@
 # ============================================================================
+# Imports estándar
+# ============================================================================
+import unicodedata
+
+# ============================================================================
 # Imports de diccionarios de keywords por categoría e idioma
 # ============================================================================
 from .keywords.sleep_and_rest.keyword_sleep_and_rest_ES import KEYWORDS_SLEEP_ES
@@ -623,5 +628,191 @@ def print_detected_keywords_summary(detected_keywords: list):
         
         for keyword, field in unique_kws.items():
             print(f"   • {field} → '{keyword}'")
+
+
+# ============================================================================
+# 🧹 UTILIDADES DE NORMALIZACIÓN DE TEXTO
+# ============================================================================
+def normalize_text(text: str) -> str:
+    """
+    Normaliza texto removiendo acentos, símbolos y caracteres especiales.
+    Convierte a minúsculas y remueve espacios extra.
+    
+    Args:
+        text: Texto a normalizar
+        
+    Returns:
+        Texto normalizado (sin acentos, minúsculas, sin símbolos especiales)
+    
+    Examples:
+        >>> normalize_text("¡Hola! ¿Cómo estás?")
+        'hola como estas'
+        >>> normalize_text("Bebé duerme bien...")
+        'bebe duerme bien'
+    """
+    if not text:
+        return ""
+    
+    # Convertir a minúsculas
+    text = text.lower()
+    
+    # Normalizar unicode (NFD = descomponer caracteres con acentos)
+    text = unicodedata.normalize('NFD', text)
+    
+    # Remover caracteres diacríticos (acentos, tildes)
+    text = ''.join(char for char in text if unicodedata.category(char) != 'Mn')
+    
+    # Remover caracteres de puntuación y símbolos, mantener solo letras, números y espacios
+    text = ''.join(char if char.isalnum() or char.isspace() else ' ' for char in text)
+    
+    # Normalizar espacios múltiples a uno solo
+    text = ' '.join(text.split())
+    
+    return text
+
+
+# ============================================================================
+# 🔍 FUZZY MATCHING PARA KEYWORDS DE PERFIL
+# ============================================================================
+def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int = 80, 
+                                  verbose: bool = True, age_months: int = None) -> list:
+    """
+    Detecta keywords del perfil usando fuzzy matching (similitud difusa).
+    Similar a get_rag_context, busca coincidencias incluso si no son exactas.
+    
+    Aplica rapidfuzz.partial_ratio a todos los keywords contra el mensaje.
+    
+    Args:
+        message: El mensaje del usuario
+        lang: Idioma ('es', 'en', 'pt')
+        threshold: Umbral de similitud (0-100). Default 80 para ser estricto.
+        verbose: Si es True, imprime matching info
+        age_months: Edad del bebé en meses (requerido para filtrar por rango de edad)
+    
+    Returns:
+        Lista de keywords detectados (mismo formato que detect_profile_keywords)
+    """
+    try:
+        from rapidfuzz import fuzz
+    except ImportError:
+        print("❌ [FUZZY] rapidfuzz no instalado. Usa: pip install rapidfuzz")
+        return []
+    
+    if age_months is None:
+        if verbose:
+            print(f"❌ [FUZZY] No hay edad del bebé, retornando lista vacía")
+        return []
+    
+    detected_keywords = []
+    detected_categories = set()
+    
+    # Normalizar el mensaje del usuario
+    message_normalized = normalize_text(message)
+    
+    # Obtener rangos y categorías permitidas
+    age_ranges = get_age_range_key(age_months)
+    allowed_categories = get_age_appropriate_categories(age_months)
+    
+    if verbose:
+        print(f"🔍 [FUZZY] Iniciando fuzzy matching...")
+        print(f"   Mensaje original: '{message[:100]}'")
+        print(f"   Mensaje normalizado: '{message_normalized[:100]}'")
+        print(f"   Threshold: {threshold}")
+        print(f"   Edad: {age_months} meses → Rangos: {age_ranges}")
+    
+    def extract_all_keywords_from_dict(data, category_path="", main_category=None, 
+                                       current_age_range=None):
+        """
+        Extrae todos los keywords (strings y listas) con su path completo.
+        Retorna tupla: (keyword_string, full_path, category, age_range)
+        """
+        all_kws = []
+        
+        if isinstance(data, dict):
+            for key, value in data.items():
+                current_path = f"{category_path}.{key}" if category_path else key
+                
+                if not main_category:
+                    if key in allowed_categories and isinstance(value, dict):
+                        all_kws.extend(extract_all_keywords_from_dict(value, current_path, main_category=key))
+                
+                elif not current_age_range:
+                    if key in age_ranges and isinstance(value, dict):
+                        all_kws.extend(extract_all_keywords_from_dict(value, current_path, main_category=main_category, current_age_range=key))
+                    elif isinstance(value, dict):
+                        all_kws.extend(extract_all_keywords_from_dict(value, current_path, main_category=main_category, current_age_range=current_age_range))
+                
+                else:
+                    if isinstance(value, str):
+                        all_kws.append((value, current_path, main_category, current_age_range))
+                    elif isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, str):
+                                all_kws.append((item, current_path, main_category, current_age_range))
+                    elif isinstance(value, dict):
+                        all_kws.extend(extract_all_keywords_from_dict(value, current_path, main_category=main_category, current_age_range=current_age_range))
+        
+        return all_kws
+    
+    # Extraer todos los keywords de todas las categorías e idiomas
+    all_keywords = []
+    for lang_code in ['es', 'en', 'pt']:
+        if lang_code in KEYWORDS_BY_CATEGORY:
+            for category_name, category_keywords in KEYWORDS_BY_CATEGORY[lang_code].items():
+                all_keywords.extend(extract_all_keywords_from_dict(category_keywords))
+    
+    if verbose:
+        print(f"📊 [FUZZY] Total keywords a comparar: {len(all_keywords)}")
+    
+    # Aplicar fuzzy matching contra cada keyword
+    matched_keywords = []
+    for keyword_str, full_path, category, age_range in all_keywords:
+        if not keyword_str or not isinstance(keyword_str, str):
+            continue
+        
+        # Normalizar el keyword también
+        keyword_normalized = normalize_text(keyword_str)
+        
+        # Usar partial_ratio (similar a get_rag_context)
+        similarity = fuzz.partial_ratio(keyword_normalized, message_normalized)
+        
+        if similarity >= threshold:
+            # Extraer subcategoría del path
+            path_parts = full_path.split('.')
+            if len(path_parts) >= 3:
+                main_subcategory = path_parts[2]
+                field_path = '.'.join(path_parts[2:])
+                field_key = path_parts[-1]
+                
+                kw_info = {
+                    'category': category,
+                    'age_range': age_range,
+                    'subcategory': main_subcategory,
+                    'field': field_path,
+                    'field_key': field_key,
+                    'keyword': keyword_str,
+                    'similarity': similarity  # Agregar score para debugging
+                }
+                matched_keywords.append(kw_info)
+                
+                if verbose:
+                    category_key = f"{category}.{main_subcategory}"
+                    if category_key not in detected_categories:
+                        print(f"✅ {category} > {age_range} > {main_subcategory} (score: {similarity})")
+                        detected_categories.add(category_key)
+    
+    # Eliminar duplicados (mantener el de mayor similitud)
+    unique_keywords = {}
+    for kw in matched_keywords:
+        field = kw['field']
+        if field not in unique_keywords or kw['similarity'] > unique_keywords[field]['similarity']:
+            unique_keywords[field] = kw
+    
+    detected_keywords = list(unique_keywords.values())
+    
+    if verbose:
+        print(f"\n🎯 [FUZZY] Total matches encontrados: {len(detected_keywords)}")
+    
+    return detected_keywords
     
     print(f"\n{'='*70}\n")
