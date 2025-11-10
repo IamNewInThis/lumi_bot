@@ -805,7 +805,7 @@ KEYWORDS_SLEEP_ES = {
             "more_4": [
                 "más de 4 veces",
                 "más de cuatro veces",
-                "muchas veces",
+                "despierta muchas veces",
                 "se despierta mucho",
                 "despierta constantemente",
                 "no duerme de corrido",
