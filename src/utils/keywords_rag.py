@@ -19,13 +19,13 @@ from .keywords.autonomy_and_development.keywords_autonomy_and_development_ES imp
 from .keywords.autonomy_and_development.keywords_autonomy_and_development_EN import KEYWORDS_DEVELOPMENT_EN
 from .keywords.autonomy_and_development.keywords_autonomy_and_development_PT import KEYWORDS_DEVELOPMENT_PT
 
-# from .keywords.emotions_bond_and_parenting.keywords_emotions_bond_and_parenting_ES import KEYWORDS_EMOTIONS_ES
-# from .keywords.emotions_bond_and_parenting.keywords_emotions_bond_and_parenting_EN import KEYWORDS_EMOTIONS_EN
-# from .keywords.emotions_bond_and_parenting.keywords_emotions_bond_and_parenting_PT import KEYWORDS_EMOTIONS_PT
+from .keywords.emotions_bond_and_parenting.keywords_bond_and_parenting_ES import KEYWORDS_EMOTIONS_ES
+from .keywords.emotions_bond_and_parenting.keywords_bond_and_parenting_EN import KEYWORDS_EMOTIONS_EN
+from .keywords.emotions_bond_and_parenting.keywords_bond_and_parenting_PT import KEYWORDS_EMOTIONS_PT
 
-# from .keywords.family_context_and_enviroment.keywords_family_context_and_enviroment_ES import KEYWORDS_FAMILY_ES
-# from .keywords.family_context_and_enviroment.keywords_family_context_and_enviroment_EN import KEYWORDS_FAMILY_EN
-# from .keywords.family_context_and_enviroment.keywords_family_context_and_enviroment_PT import KEYWORDS_FAMILY_PT
+from .keywords.family_context_and_enviroment.keyword_family_context_ES import KEYWORDS_FAMILY_CONTEXT_ES
+from .keywords.family_context_and_enviroment.keyword_family_context_EN import KEYWORDS_FAMILY_CONTEXT_EN
+from .keywords.family_context_and_enviroment.keyword_family_context_PT import KEYWORDS_FAMILY_CONTEXT_PT
 
 # from .keywords.travel_and_mobility.keywords_travel_and_mobility_ES import KEYWORDS_TRAVEL_ES
 # from .keywords.travel_and_mobility.keywords_travel_and_mobility_EN import KEYWORDS_TRAVEL_EN
@@ -37,24 +37,24 @@ KEYWORDS_BY_CATEGORY = {
         'sleep and rest': KEYWORDS_SLEEP_ES,
         'daily cares': KEYWORDS_DAILY_CARE_ES,
         'autonomy and development': KEYWORDS_DEVELOPMENT_ES,
-        # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_ES,
-        # 'family context and environment': KEYWORDS_FAMILY_ES,
-        # 'travel and mobility': KEYWORDS_TRAVEL_ES,
+        'emotions bonds and respectful parenting': KEYWORDS_EMOTIONS_ES,
+        'family context and environment': KEYWORDS_FAMILY_CONTEXT_ES,
+        # 'travel and mobility': KEYWORDS_TRAVEL_EN,
     },
     'en': {
         'sleep and rest': KEYWORDS_SLEEP_EN,
         'daily cares': KEYWORDS_DAILY_CARE_EN,
         'autonomy and development': KEYWORDS_DEVELOPMENT_EN,
-        # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_EN,
-        # 'family context and environment': KEYWORDS_FAMILY_EN,
+        'emotions bonds and respectful parenting': KEYWORDS_EMOTIONS_EN,
+        'family context and environment': KEYWORDS_FAMILY_CONTEXT_EN,
         # 'travel and mobility': KEYWORDS_TRAVEL_EN,
     },
     'pt': {
         'sleep and rest': KEYWORDS_SLEEP_PT,
         'daily cares': KEYWORDS_DAILY_CARE_PT,
         'autonomy and development': KEYWORDS_DEVELOPMENT_PT,
-        # 'emotions bonds and parenting': KEYWORDS_EMOTIONS_PT,
-        # 'family context and environment': KEYWORDS_FAMILY_PT,
+        'emotions bonds and respectful parenting': KEYWORDS_EMOTIONS_PT,
+        'family context and environment': KEYWORDS_FAMILY_CONTEXT_PT,
         # 'travel and mobility': KEYWORDS_TRAVEL_PT,
     }
 }
@@ -399,7 +399,7 @@ def get_age_appropriate_categories(age_months: int) -> set:
         'sleep and rest',
         'daily cares',
         'autonomy and development',
-        'emotions bonds and parenting',
+        'emotions bonds and respectful parenting',
         'family context and environment',
         'travel and mobility'
     }
@@ -725,6 +725,9 @@ def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int
         """
         Extrae todos los keywords (strings y listas) con su path completo.
         Retorna tupla: (keyword_string, full_path, category, age_range)
+        
+        IMPORTANTE: Ahora recibe main_category desde el inicio (ya no None en primer nivel)
+        porque el nivel duplicado de categoría ya fue saltado antes de llamar esta función.
         """
         all_kws = []
         
@@ -732,16 +735,24 @@ def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int
             for key, value in data.items():
                 current_path = f"{category_path}.{key}" if category_path else key
                 
-                if not main_category:
-                    if key in allowed_categories and isinstance(value, dict):
-                        all_kws.extend(extract_all_keywords_from_dict(value, current_path, main_category=key))
-                
-                elif not current_age_range:
+                # Buscar rango de edad (puede estar en el primer nivel ahora)
+                if not current_age_range:
+                    # Verificar si es un rango de edad válido
                     if key in age_ranges and isinstance(value, dict):
-                        all_kws.extend(extract_all_keywords_from_dict(value, current_path, main_category=main_category, current_age_range=key))
+                        all_kws.extend(extract_all_keywords_from_dict(
+                            value, current_path, 
+                            main_category=main_category, 
+                            current_age_range=key
+                        ))
                     elif isinstance(value, dict):
-                        all_kws.extend(extract_all_keywords_from_dict(value, current_path, main_category=main_category, current_age_range=current_age_range))
+                        # Seguir profundizando (puede ser subcategoría)
+                        all_kws.extend(extract_all_keywords_from_dict(
+                            value, current_path, 
+                            main_category=main_category, 
+                            current_age_range=current_age_range
+                        ))
                 
+                # Ya tenemos age_range, extraer keywords
                 else:
                     if isinstance(value, str):
                         all_kws.append((value, current_path, main_category, current_age_range))
@@ -750,19 +761,48 @@ def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int
                             if isinstance(item, str):
                                 all_kws.append((item, current_path, main_category, current_age_range))
                     elif isinstance(value, dict):
-                        all_kws.extend(extract_all_keywords_from_dict(value, current_path, main_category=main_category, current_age_range=current_age_range))
+                        all_kws.extend(extract_all_keywords_from_dict(
+                            value, current_path, 
+                            main_category=main_category, 
+                            current_age_range=current_age_range
+                        ))
         
         return all_kws
     
-    # Extraer todos los keywords de todas las categorías e idiomas
+    # Extraer todos los keywords SOLO del idioma especificado
     all_keywords = []
-    for lang_code in ['es', 'en', 'pt']:
-        if lang_code in KEYWORDS_BY_CATEGORY:
-            for category_name, category_keywords in KEYWORDS_BY_CATEGORY[lang_code].items():
-                all_keywords.extend(extract_all_keywords_from_dict(category_keywords))
+    if lang in KEYWORDS_BY_CATEGORY:
+        for category_name, category_keywords in KEYWORDS_BY_CATEGORY[lang].items():
+            # TODOS los archivos tienen un nivel duplicado con la clave de categoría
+            # Ejemplo: KEYWORDS_SLEEP_ES = {"sleep and rest": {...}}
+            #          KEYWORDS_EMOTIONS_ES = {"emotions bond and parenting": {...}}
+            
+            # Saltar el nivel duplicado si existe
+            if isinstance(category_keywords, dict) and category_name in category_keywords:
+                # Usar el contenido interno directamente
+                actual_keywords = category_keywords[category_name]
+            else:
+                # Si no hay duplicación, usar tal cual
+                actual_keywords = category_keywords
+            
+            # Extraer keywords empezando desde el nivel correcto
+            # IMPORTANTE: Incluir category_name en el path para que coincida con la estructura esperada
+            keywords_from_category = extract_all_keywords_from_dict(
+                actual_keywords,
+                category_path=category_name,  # Iniciar path con el nombre de la categoría
+                main_category=category_name  # Ya sabemos la categoría
+            )
+            
+            if verbose:
+                print(f"   📦 [{category_name}]: {len(keywords_from_category)} keywords extraídos")
+            all_keywords.extend(keywords_from_category)
+    else:
+        if verbose:
+            print(f"⚠️ [FUZZY] Idioma '{lang}' no encontrado en KEYWORDS_BY_CATEGORY")
+        return []
     
     if verbose:
-        print(f"📊 [FUZZY] Total keywords a comparar: {len(all_keywords)}")
+        print(f"📊 [FUZZY] Total keywords a comparar ({lang}): {len(all_keywords)}")
     
     # Aplicar fuzzy matching contra cada keyword
     matched_keywords = []

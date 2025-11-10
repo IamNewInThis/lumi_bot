@@ -1,182 +1,226 @@
 KEYWORDS_EMOTIONS_ES = {
-    # ------------------------------------------------------------------------
-    # 🍼 EMOCIONES Y CRIANZA RESPETUOSA (0–6 MESES)
-    # ------------------------------------------------------------------------
-    "emotions_and_respectful_parenting": {
+    "emotions bonds and respectful parenting": {
         "0_6": {
-            "calming_strategies": {
+            "back_to_calm": {
                 "being_held": [
                     "estar en brazos con calma",
-                    "sostenerlo en silencio con el cuerpo relajado",
+                    "sostenerlo en brazos",
+                    "en brazos tranquilo",
+                    "sostener con cuerpo relajado",
                 ],
                 "feeding_and_contact": [
                     "amamantar",
-                    "sostener en contacto piel a piel",
-                    "acostarse con el bebé encima del pecho",
+                    "dar pecho",
+                    "contacto piel a piel",
+                    "pecho con el adulto",
+                    "alimentar en brazos",
                 ],
                 "gentle_motion": [
-                    "mecer con ritmo suave y constante",
-                    "caminar con el bebé en brazos o en portabebé",
-                    "pasear en el cochecito con movimiento suave",
+                    "mecer suave",
+                    "caminar con el bebé",
+                    "balancear",
+                    "pasear en cochecito",
+                    "movimiento suave",
                 ],
                 "soothing_environment": [
-                    "taparlo o envolverlo con una manta suave",
-                    "dar un baño tibio",
-                    "cambiarle el pañal o la ropa si está incómodo",
+                    "baño tibio",
+                    "envolver con manta",
+                    "taparlo con manta",
+                    "cambiar pañal o ropa",
+                    "ambiente tranquilo",
                 ],
                 "auditory_calming": [
-                    "cantar o tararear en voz baja",
-                    "hacer sonidos repetidos cerca del oído",
-                    "escuchar un sonido constante o ruido blanco",
-                    "hablarle con voz tranquila",
+                    "cantar suave",
+                    "tararear",
+                    "hablar tranquilo",
+                    "ruido blanco",
+                    "shhh",
+                    "mmm",
                 ],
                 "familiar_object": [
-                    "ofrecer un objeto o prenda que le resulta familiar",
+                    "objeto de apego",
+                    "manta",
+                    "pañuelo",
+                    "muñeco familiar",
                 ],
                 "gentle_touch": [
-                    "hacerle un masaje suave (abdomen, espalda o piernas)",
+                    "masaje suave",
+                    "caricias",
+                    "acariciar espalda",
+                    "acariciar piernas",
                 ],
-            },
-
-        # ------------------------------------------------------------------------
-        # 🚼 EMOCIONES Y CRIANZA RESPETUOSA (6–12 MESES)
-        # ------------------------------------------------------------------------
-        "6_12": {
-            "calming_strategies": {
-                "being_held": [
-                    "estar en brazos con calma",
-                    "sentarse con el bebé en brazos, sin hablar ni moverse",
-                ],
-                "movement_and_balance": [
-                    "mecer con movimientos suaves y constantes",
-                    "caminar con el bebé en brazos o en portabebé",
-                ],
-                "soft_communication": [
-                    "cantar suave o tararear con ritmo lento",
-                    "hablarle en voz baja con frases simples",
-                    "susurrar o hacer un sonido repetido (shhh, mmm)",
-                ],
-                "comfort_and_security": [
-                    "ofrecer un objeto que le da seguridad",
-                    "hacer contacto piel a piel",
-                    "acariciar la espalda, el pecho o la cabeza con ritmo",
-                    "abrazar por unos segundos con firmeza suave",
-                ],
-                "hydration_and_attention": [
-                    "ofrecer un poco de agua para beber",
-                ],
-                "interactive_play": [
-                    "hacer un juego de manos o rima con gestos repetidos",
-                ],
-            },
+            }
+            
         },
 
-        # ------------------------------------------------------------------------
-        # 👶 EMOCIONES Y CRIANZA RESPETUOSA (12–24 MESES)
-        # ------------------------------------------------------------------------
+        # --------------------------------------------------------------------
+        # 🚼 6–12 MESES
+        # --------------------------------------------------------------------
+        
+        "6_12": {
+            "back_to_calm": {
+                "being_held": [
+                    "estar en brazos",
+                    "sentarse con el bebé en brazos",
+                    "en brazos sin hablar",
+                ],
+                "movement_and_balance": [
+                    "mecer con movimientos suaves",
+                    "caminar con el bebé",
+                    "balanceo suave",
+                ],
+                "soft_communication": [
+                    "cantar lento",
+                    "hablar en voz baja",
+                    "susurrar",
+                    "shhh",
+                    "mmm",
+                ],
+                "comfort_and_security": [
+                    "contacto piel a piel",
+                    "abrazo suave",
+                    "acariciar cabeza",
+                    "acariciar espalda",
+                    "objeto de seguridad",
+                ],
+                "hydration_and_attention": [
+                    "ofrecer agua",
+                    "dar un poco de agua",
+                ],
+                "interactive_play": [
+                    "juego de manos",
+                    "rima con gestos",
+                    "palmas palmitas",
+                ],
+            } 
+        },
+
+        # --------------------------------------------------------------------
+        # 👶 12–24 MESES
+        # --------------------------------------------------------------------
         "12_24": {
-            "calming_strategies": {
+            "back_to_calm": {
                 "presence_and_contact": [
-                    "estar en brazos del adulto con calma y sin moverse",
-                    "sentarse cerca del adulto en silencio",
+                    "en brazos del adulto",
+                    "cerca del adulto",
+                    "sentarse cerca",
                     "ir a un lugar tranquilo con el adulto",
                 ],
                 "music_and_breath": [
-                    "cantar junto al adulto o escuchar una canción que le gusta",
-                    "jugar a soplar o respirar con el adulto",
+                    "cantar canción",
+                    "escuchar canción favorita",
+                    "soplar con el adulto",
+                    "respirar juntos",
                 ],
                 "movement_and_body": [
-                    "mecer o moverse suavemente con el adulto si lo necesita",
-                    "caminar de la mano con el adulto",
+                    "moverse suavemente",
+                    "caminar de la mano",
                     "apretar algo con las manos",
                 ],
                 "hydration_and_focus": [
-                    "ofrecer un poco de agua para beber",
-                    "observar algo tranquilo sin estímulo verbal",
+                    "dar agua",
+                    "beber un poco",
+                    "mirar tranquilo",
+                    "observar sin estímulo verbal",
                 ],
                 "repetitive_and_ordering_play": [
-                    "jugar a meter, sacar o repetir un movimiento simple",
+                    "meter y sacar objetos",
+                    "repetir movimientos simples",
+                    "juego repetido",
                 ],
                 "comfort_and_closure": [
-                    "taparse con una manta o esconderse brevemente",
-                    "escuchar al adulto hablar en voz baja con tono constante",
-                    "escuchar o acompañar un juego de manos del adulto",
-                    "abrazarse con el adulto (si lo acepta)",
+                    "taparse con manta",
+                    "esconderse brevemente",
+                    "escuchar voz baja del adulto",
+                    "abrazarse con el adulto",
                 ],
             },
         },
 
-        # ------------------------------------------------------------------------
-        # 🧒 EMOCIONES Y CRIANZA RESPETUOSA (24–48 MESES / 2–4 AÑOS)
-        # ------------------------------------------------------------------------
+        # --------------------------------------------------------------------
+        # 🧒 24–48 MESES / 2–4 AÑOS
+        # --------------------------------------------------------------------
         "24_48": {
-            "calming_strategies": {
+            "back_to_calm": {
                 "quiet_and_presence": [
                     "ir a un lugar tranquilo",
-                    "alejarse un poco con el adulto cerca",
+                    "alejarse un poco con el adulto",
                     "estar con el adulto en silencio",
                 ],
                 "music_and_breath": [
-                    "cantar junto al adulto o escuchar una canción que le gusta",
-                    "jugar a respirar con el adulto (como soplar o inflar panza)",
+                    "cantar junto al adulto",
+                    "escuchar canción que le gusta",
+                    "jugar a respirar con el adulto",
+                    "inflar panza",
                 ],
                 "body_and_movement": [
-                    "saltar o moverse con libertad",
-                    "caminar de la mano con el adulto",
+                    "saltar",
+                    "moverse con libertad",
+                    "caminar de la mano",
                     "apretar algo con las manos",
                 ],
                 "hydration_and_focus": [
-                    "ofrecer un poco de agua para beber",
-                    "mirar imágenes o fijar la vista en algo tranquilo",
+                    "beber agua",
+                    "ofrecer un poco de agua",
+                    "mirar imágenes tranquilas",
+                    "fijar la vista en algo tranquilo",
                 ],
                 "repetitive_and_creative_play": [
-                    "dibujar o trazar con los dedos",
-                    "jugar a mover o ordenar objetos de forma repetida",
+                    "dibujar con los dedos",
+                    "mover objetos repetidamente",
+                    "ordenar cosas",
                 ],
                 "comfort_and_connection": [
-                    "taparse con una manta o cubrirse la cabeza",
-                    "escuchar al adulto hablar en voz baja con calma",
-                    "escuchar o acompañar un juego de manos del adulto",
-                    "abrazarse con el adulto (si lo acepta)",
+                    "taparse con una manta",
+                    "cubrirse la cabeza",
+                    "escuchar voz baja del adulto",
+                    "juego de manos del adulto",
+                    "abrazarse con el adulto",
                 ],
             },
         },
 
-        # ------------------------------------------------------------------------
-        # 👧 EMOCIONES Y CRIANZA RESPETUOSA (48–84 MESES / 4–7 AÑOS)
-        # ------------------------------------------------------------------------
+        # --------------------------------------------------------------------
+        # 👧 48–84 MESES / 4–7 AÑOS
+        # --------------------------------------------------------------------
         "48_84": {
-            "calming_strategies": {
+            "back_to_calm": {
                 "quiet_and_autonomy": [
                     "ir a un lugar tranquilo",
                     "estar solo un momento",
                     "estar con el adulto en silencio",
                 ],
                 "music_and_breath": [
-                    "cantar junto al adulto o escuchar una canción que le gusta",
-                    "hacer ejercicios de respiración con el adulto",
+                    "cantar con el adulto",
+                    "escuchar canción favorita",
+                    "hacer ejercicios de respiración",
+                    "respirar juntos",
                 ],
                 "body_and_movement": [
-                    "saltar o moverse con libertad",
+                    "saltar",
                     "caminar de la mano con el adulto",
                     "apretar algo con las manos",
+                    "moverse con libertad",
                 ],
                 "hydration_and_focus": [
-                    "ofrecer un poco de agua para beber",
-                    "mirar imágenes o fijar la vista en algo tranquilo",
+                    "beber agua",
+                    "ofrecer un poco de agua",
+                    "mirar imágenes tranquilas",
+                    "fijar la vista en algo tranquilo",
                 ],
                 "repetitive_and_creative_play": [
-                    "dibujar o trazar con los dedos",
-                    "jugar a mover o ordenar objetos de forma repetida",
+                    "dibujar con los dedos",
+                    "mover objetos repetidamente",
+                    "ordenar cosas",
                 ],
                 "comfort_and_connection": [
-                    "taparse con una manta o cubrirse la cabeza",
-                    "escuchar al adulto hablar en voz baja con calma",
-                    "escuchar o acompañar un juego de manos del adulto",
-                    "abrazarse con el adulto (si lo acepta)",
+                    "taparse con una manta",
+                    "cubrirse la cabeza",
+                    "escuchar voz baja del adulto",
+                    "juego de manos del adulto",
+                    "abrazarse con el adulto",
                 ],
             },
         },
     }
-}
 }
