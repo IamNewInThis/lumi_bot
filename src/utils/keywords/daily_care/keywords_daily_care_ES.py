@@ -182,9 +182,9 @@ KEYWORDS_DAILY_CARE_ES = {
                     "alone": ["baño independiente", "se baña solo"],
                 },
                 "eating_autonomy": {
-                    "adult_feeds": ["el adulto da la comida", "lo alimenta un adulto"],
+                    "adult_feeds": ["el adulto da la comida", "lo alimenta un adulto", 'le doy de comer'],
                     "with_help": ["come con ayuda"],
-                    "with_supervision": ["come solo con supervisión"],
+                    "with_supervision": ["come solo con supervisión", "come cuando lo veo"],
                     "alone": ["come solo", "independiente"],
                 },
                 "dressing_autonomy": {

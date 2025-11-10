@@ -51,6 +51,7 @@ KEYWORDS_SLEEP_EN = {
                 "variable": "variable",
                 "long": "long",
             },
+            # TODO: mejorar keywords
             "wake_windows": {
                 "min_30_45": "30–45 min",
                 "min_45_60": "45–60 min",
@@ -176,6 +177,7 @@ KEYWORDS_SLEEP_EN = {
                 "other": "comfort object",
                 "none": "no comfort object yet",
             },
+            # TODO: preguntar si es mejor promedio
             "naps_per_day": {
                 "1": "1",
                 "2": "2",
@@ -573,6 +575,7 @@ KEYWORDS_SLEEP_EN = {
                 "occasional": "occasional",
                 "daily": "daily",
             },
+            # TODO: Mejorar values de tiempo
             "nap_duration": {
                 "less_30": "<30 min",
                 "min_30_60": "30-60 min",
@@ -653,10 +656,7 @@ KEYWORDS_SLEEP_EN = {
                 "active": "active",
                 "calm": "calm",
                 "persistent": "persistent",
-            },
-            "sleep_comments": {
-                "notes": "sleep comments or particularities",
-            },
+            }
         },
     },
 }  # End sleep_and_rest
