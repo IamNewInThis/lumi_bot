@@ -805,8 +805,8 @@ def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int
             
             if keywords_from_category:
                 lang_totals[lang_code] = lang_totals.get(lang_code, 0) + len(keywords_from_category)
-            if verbose:
-                print(f"   📦 [{lang_code.upper()} - {category_name}]: {len(keywords_from_category)} keywords extraídos")
+            # if verbose:
+            #     print(f"   📦 [{lang_code.upper()} - {category_name}]: {len(keywords_from_category)} keywords extraídos")
             
             all_keywords.extend(keywords_from_category)
     

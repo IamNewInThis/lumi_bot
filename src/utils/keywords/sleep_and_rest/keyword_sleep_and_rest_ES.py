@@ -55,7 +55,12 @@ KEYWORDS_SLEEP_ES = {
             ],
         },
         "sleep_location": {
-            "crib": "cuna",
+            "crib": [
+                "cuna",
+                "en su cuna",
+                "duerme en cuna",
+                "duerma en su cuna"
+            ],
             "co_sleeping": "colecho",
             "bassinet": "moisés",
             "in_motion": [
@@ -97,6 +102,7 @@ KEYWORDS_SLEEP_ES = {
                 "cuando me mira"
             ],
         },
+        # TODO mejorar keywords 
         "comfort_object": {
             "blankie": "mantita",
             "cloth": "tuto",
@@ -350,29 +356,7 @@ KEYWORDS_SLEEP_ES = {
                 "thick_comforter": "con un cobertor grueso",
                 "sheets": "con sábanas",
             },
-        },
-        "temperament": {
-            "very_sensitive": ["temperamento muy sensible",
-                               "es super sensible",
-                               "es muy sensible",
-                               "es bastante sensible",
-                               "se altera con facilidad"],
-            "adaptable": ["temperamento adaptable",
-                           "es super adaptable",
-                           "es muy adaptable",
-                           "es bastante adaptable",
-                           "a veces se adapta rápido"
-                       ],
-            "active": ["temperamento activo",
-                       "es super activo",
-                       "es muy activo",
-                       "es bastante activo"
-                       ],
-            "calm": ["temperamento tranquilo", 
-                    "es super tranquilo",
-                    "es muy tranquilo",
-                    "es bastante tranquilo"],
-        },
+        }
     },
     # ============================================================================
     # 💤 SUEÑO Y DESCANSO (6–12 MESES)
@@ -927,7 +911,37 @@ KEYWORDS_SLEEP_ES = {
             "recommended_range": "45–55 % recomendado",
         },
         "sleepwear": {
-            "referenced_from": "al final del doc 0–6 meses",
+            "base": {
+                "short_sleeve_bodysuit": "con body de manga corta",
+                "long_sleeve_bodysuit": "con body de manga larga",
+                "undershirt_or_no_bodysuit": "con camiseta interior o sin body",
+                "light_underwear_or_diaper": "solo con ropa interior o pañal",
+            },
+            "mid_layer": {
+                "no_pajamas_bodysuit_only": "sin pijama, solo body",
+                "one_piece_sleeper": "con pijama completo",
+                "two_piece_pajamas": "con pijama de dos piezas",
+                "thermal_or_fleece_pajamas": "con pijama térmico o polar",
+                "nightgown_or_light_robe": "con camisón o bata ligera",
+                "t_shirt_and_shorts": "con camiseta y short",
+            },
+            "cover_age_0_3": {
+                "no_blanket_or_sleep_sack": "sin abrigo adicional",
+                "sleep_sack_tog_0_5": "con saco liviano",
+                "sleep_sack_tog_1_0": "con saco TOG",
+                "sleep_sack_tog_1_5": "con saco TOG",
+                "sleep_sack_tog_2_5": "con saco térmico",
+                "light_blanket": "con una manta ligera",
+                "thin_comforter": "con un cobertor delgado",
+                "thick_comforter": "con un cobertor grueso",
+                "other_cover": "con otro tipo de abrigo para dormir",
+            },
+            "cover_age_3_7": {
+                "light_blanket": "con una manta ligera",
+                "thin_comforter": "con un cobertor delgado",
+                "thick_comforter": "con un cobertor grueso",
+                "sheets": "con sábanas",
+            },
         },
         "adult_accompaniment": {
             "constant_contact": [
@@ -948,35 +962,6 @@ KEYWORDS_SLEEP_ES = {
                 "desde lejos",
                 "sin estar tan cerca"
             ],
-        },
-        "temperament": {
-            "sensitive": [
-                "sensible",
-                "muy sensible",
-                "bebé sensible",
-                "delicado"
-            ],
-            "adaptable": [
-                "adaptable",
-                "se adapta bien",
-                "flexible",
-                "fácil de adaptar"
-            ],
-            "active": [
-                "activo",
-                "muy activo",
-                "bebé activo",
-                "inquieto"
-            ],
-            "calm": [
-                "tranquilo",
-                "calmado",
-                "bebé tranquilo",
-                "relajado"
-            ],
-        },
-        "sleep_comments": {
-            "notes": "comentarios o particularidades del sueño",
         },
     },
     # ============================================================================
@@ -1294,7 +1279,8 @@ KEYWORDS_SLEEP_ES = {
             "comfort_object": [
                 "objeto de apego",
                 "su objeto",
-                "le doy su objeto"
+                "le doy su objeto",
+                "vuelve a dormir con su objeto de apego",
             ],
             "in_crib": [
                 "en cuna",
