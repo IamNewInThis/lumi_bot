@@ -41,11 +41,10 @@ KEYWORDS_SLEEP_ES = {
                 "no diferencia la hora de dormir con la de jugar"
             ],
             "starting_to_distinguish": [
+                "comienza a distinguir",
                 "empieza a distinguir el día de la noche",
-                "empieza a distinguir la hora de dormir de la de jugar",
-                "empieza a diferenciar la hora de dormir de la de jugar",
-                "empieza a diferenciar la hora de dormir de la de jugar",
-                "empieza a diferenciar la hora de dormir de y la de jugar"
+                "empieza a distinguir la hora de dormir",
+                "distinguir entre el dia y la noche",
             ],
             "consolidated": [
                 "consolidado",

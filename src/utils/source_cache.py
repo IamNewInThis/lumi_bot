@@ -28,11 +28,11 @@ class SourceCache:
             # Check if overwriting existing cache
             if user_id in self._cache:
                 existing_data = self._cache[user_id]
-                print(f"⚠️ [SOURCE-CACHE] SOBRESCRIBIENDO cache existente para usuario {user_id[:8]}...")
-                print(f"⚠️ [SOURCE-CACHE] Cache anterior: {existing_data['sources']}")
-                print(f"⚠️ [SOURCE-CACHE] Consulta anterior: '{existing_data['original_query']}'")
-                print(f"⚠️ [SOURCE-CACHE] Cache nuevo: {sources}")
-                print(f"⚠️ [SOURCE-CACHE] Consulta nueva: '{query}'")
+                # print(f"⚠️ [SOURCE-CACHE] SOBRESCRIBIENDO cache existente para usuario {user_id[:8]}...")
+                # print(f"⚠️ [SOURCE-CACHE] Cache anterior: {existing_data['sources']}")
+                # print(f"⚠️ [SOURCE-CACHE] Consulta anterior: '{existing_data['original_query']}'")
+                # print(f"⚠️ [SOURCE-CACHE] Cache nuevo: {sources}")
+                # print(f"⚠️ [SOURCE-CACHE] Consulta nueva: '{query}'")
             
             self._cache[user_id] = {
                 "sources": sources,

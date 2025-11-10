@@ -769,10 +769,20 @@ def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int
         
         return all_kws
     
-    # Extraer todos los keywords SOLO del idioma especificado
+    # Extraer keywords recorriendo los 3 idiomas para evitar falsos negativos
+    languages_to_search = ['es', 'en', 'pt']
+    if lang in languages_to_search:
+        languages_to_search.remove(lang)
+        languages_to_search.insert(0, lang)
+    
     all_keywords = []
-    if lang in KEYWORDS_BY_CATEGORY:
-        for category_name, category_keywords in KEYWORDS_BY_CATEGORY[lang].items():
+    lang_totals = {}
+    
+    for lang_code in languages_to_search:
+        if lang_code not in KEYWORDS_BY_CATEGORY:
+            continue
+        
+        for category_name, category_keywords in KEYWORDS_BY_CATEGORY[lang_code].items():
             # TODOS los archivos tienen un nivel duplicado con la clave de categoría
             # Ejemplo: KEYWORDS_SLEEP_ES = {"sleep and rest": {...}}
             #          KEYWORDS_EMOTIONS_ES = {"emotions bond and parenting": {...}}
@@ -793,16 +803,21 @@ def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int
                 main_category=category_name  # Ya sabemos la categoría
             )
             
+            if keywords_from_category:
+                lang_totals[lang_code] = lang_totals.get(lang_code, 0) + len(keywords_from_category)
             if verbose:
-                print(f"   📦 [{category_name}]: {len(keywords_from_category)} keywords extraídos")
+                print(f"   📦 [{lang_code.upper()} - {category_name}]: {len(keywords_from_category)} keywords extraídos")
+            
             all_keywords.extend(keywords_from_category)
-    else:
+    
+    if not all_keywords:
         if verbose:
-            print(f"⚠️ [FUZZY] Idioma '{lang}' no encontrado en KEYWORDS_BY_CATEGORY")
+            print("⚠️ [FUZZY] No se encontraron keywords configurados en ningún idioma")
         return []
     
     if verbose:
-        print(f"📊 [FUZZY] Total keywords a comparar ({lang}): {len(all_keywords)}")
+        lang_summary = ", ".join(f"{code.upper()}: {count}" for code, count in lang_totals.items())
+        print(f"📊 [FUZZY] Total keywords a comparar ({lang_summary}): {len(all_keywords)}")
     
     # Aplicar fuzzy matching contra cada keyword
     matched_keywords = []
