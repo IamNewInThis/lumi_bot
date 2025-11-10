@@ -25,7 +25,10 @@ SPANISH_MARKERS = {
 ENGLISH_MARKERS = {
     'want', 'you', 'with', 'for', 'where', 'when', 'because', 'hello',
     'hi', 'thank you', 'thanks', 'goodbye', 'bye', 'yes', 'no',
-    'please', 'good morning', 'good afternoon', 'good evening', 'how are you'
+    'please', 'good morning', 'good afternoon', 'good evening', 'how are you',
+    'sleep', 'sleeping', 'nap', 'night', 'day', 'baby', 'has', 'have',
+    'been', 'is', 'are', 'good', 'well', 'lately', 'between', 'she', 'he',
+    'their', 'can', 'distinguish'
 }
 
 SPANISH_UNIQUE_CHARS = {'ñ', '¡', '¿'}

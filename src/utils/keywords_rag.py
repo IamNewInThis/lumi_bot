@@ -674,7 +674,7 @@ def normalize_text(text: str) -> str:
 # ============================================================================
 # 🔍 FUZZY MATCHING PARA KEYWORDS DE PERFIL
 # ============================================================================
-def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int = 80, 
+def detect_profile_keywords_fuzzy(message: str, lang: str = 'es', threshold: int = 95, 
                                   verbose: bool = True, age_months: int = None) -> list:
     """
     Detecta keywords del perfil usando fuzzy matching (similitud difusa).

@@ -56,9 +56,9 @@ class RoutineDetector:
         has_routine_keywords = any(keyword in message_lower for keyword in routine_keywords)
         
         print(f"🔍 Mensaje: '{message}'")
-        print(f"🔍 Keywords encontradas: {[k for k in routine_keywords if k in message_lower]}")
-        print(f"🔍 Tiene keywords de rutina: {has_routine_keywords}")
-        print(f"👥 Bebés disponibles: {[b.get('name', 'Sin nombre') for b in babies_context]}")
+        # print(f"🔍 Keywords encontradas: {[k for k in routine_keywords if k in message_lower]}")
+        # print(f"🔍 Tiene keywords de rutina: {has_routine_keywords}")
+        # print(f"👥 Bebés disponibles: {[b.get('name', 'Sin nombre') for b in babies_context]}")
         
         if not has_routine_keywords:
             print("❌ No hay keywords de rutina, saltando detección")

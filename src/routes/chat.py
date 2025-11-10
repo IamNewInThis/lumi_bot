@@ -444,11 +444,14 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     
     # 1️⃣ Detectar idioma desde el primer mensaje
     conversation_id = payload.baby_id or str(user_id)
-    lang = get_lang(conversation_id)
-
-    if not lang:
-        lang = detect_lang(payload.message)
-        set_lang(conversation_id, lang)
+    current_lang = get_lang(conversation_id)
+    detected_lang = detect_lang(payload.message, default=current_lang or "es")
+    
+    if current_lang != detected_lang:
+        if current_lang:
+            print(f"🔁 [LANG] Cambio detectado en la conversación {conversation_id}: {current_lang} -> {detected_lang}")
+        set_lang(conversation_id, detected_lang)
+    lang = detected_lang
 
     print(f"🌐 Idioma detectado para la conversación: {lang}")
     
@@ -477,7 +480,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     detected_profile_keywords = detect_profile_keywords_fuzzy(
         payload.message, 
         lang, 
-        threshold=90,  # Umbral alto (90%) para evitar falsos positivos
+        threshold=95,
         age_months=baby_age_months,
         verbose=True
     )
@@ -799,5 +802,5 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
     return {
         "answer": assistant, 
         "usage": usage,
-        "profile_keywords": profile_keywords_pending  # Keywords pendientes de confirmación
+        "profile_keywords": profile_keywords_pending 
     }

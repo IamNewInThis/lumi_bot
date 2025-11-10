@@ -42,9 +42,9 @@ class SourceCache:
                 "processed_sources": self._process_sources_for_references(sources)
             }
             
-        print(f"💾 [SOURCE-CACHE] Guardados {len(sources)} documentos para usuario {user_id[:8]}...")
-        print(f"💾 [SOURCE-CACHE] Documentos: {sources}")
-        print(f"💾 [SOURCE-CACHE] Consulta: '{query[:50]}{'...' if len(query) > 50 else ''}')")
+        # print(f"💾 [SOURCE-CACHE] Guardados {len(sources)} documentos para usuario {user_id[:8]}...")
+        # print(f"💾 [SOURCE-CACHE] Documentos: {sources}")
+        # print(f"💾 [SOURCE-CACHE] Consulta: '{query[:50]}{'...' if len(query) > 50 else ''}')")
     
     def get_sources(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -122,7 +122,7 @@ class SourceCache:
                 # Query genérica basada en el nombre del archivo
                 processed[ref_file] = f"{base_name} referencias estudios investigaciones"
             
-            print(f"🗂️ [SOURCE-MAPPING] {source} → {ref_file} (query: '{processed[ref_file]}')")
+            # print(f"🗂️ [SOURCE-MAPPING] {source} → {ref_file} (query: '{processed[ref_file]}')")
         
         return processed
     
