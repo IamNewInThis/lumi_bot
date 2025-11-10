@@ -12,7 +12,6 @@ from src.rag.utils import get_rag_context, get_rag_context_simple
 from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
-from src.prompts.system.build_system_prompt_for_lumi import build_system_prompt_for_lumi
 from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, detect_profile_keywords, detect_profile_keywords_fuzzy, print_detected_keywords_summary
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
@@ -444,21 +443,32 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     
     # 1️⃣ Detectar idioma desde el primer mensaje
     conversation_id = payload.baby_id or str(user_id)
-    current_lang = get_lang(conversation_id)
-    detected_lang = detect_lang(payload.message, default=current_lang or "es")
-    
-    if current_lang != detected_lang:
-        if current_lang:
-            print(f"🔁 [LANG] Cambio detectado en la conversación {conversation_id}: {current_lang} -> {detected_lang}")
-        set_lang(conversation_id, detected_lang)
-    lang = detected_lang
+    lang = get_lang(conversation_id)
+    lang_marker_info = None
+
+    if not lang:
+        lang, lang_marker_info = detect_lang(payload.message, return_matches=True)
+        set_lang(conversation_id, lang)
+    else:
+        print(f"🌐 [LANG] Reutilizando idioma en cache para conversación: {lang}")
+
+    if lang_marker_info is not None:
+        marker_logs = [
+            f"{code}: {matches}"
+            for code, matches in lang_marker_info.items()
+            if matches
+        ]
+        if marker_logs:
+            print(f"🧭 [LANG] Markers usados en detección → {' | '.join(marker_logs)}")
+        else:
+            print(f"🧭 [LANG] Sin markers detectados; se usó langdetect/default")
 
     print(f"🌐 Idioma detectado para la conversación: {lang}")
     
     # Obtener información de los bebés del usuario
     babies_response = supabase.table("babies").select("*").eq("user_id", user_id).execute()
     babies_context = babies_response.data or []
-    print(f"👶 Bebés en contexto disponible: {len(babies_context)}")
+    # print(f"👶 Bebés en contexto disponible: {len(babies_context)}")
     
     # Determinar el bebé activo y calcular su edad en meses
     active_baby = None
@@ -480,7 +490,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     detected_profile_keywords = detect_profile_keywords_fuzzy(
         payload.message, 
         lang, 
-        threshold=95,
+        threshold=95,  # Umbral alto (95%) para evitar falsos positivos
         age_months=baby_age_months,
         verbose=True
     )
@@ -500,12 +510,12 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         # 1. Prioridad: baby_id del payload (si el usuario seleccionó un bebé específico)
         if payload.baby_id:
             target_baby_id = payload.baby_id
-            print(f"🎯 [PROFILE] baby_id identificado del payload: {target_baby_id}")
+            # print(f"🎯 [PROFILE] baby_id identificado del payload: {target_baby_id}")
         # 2. Si no hay baby_id en payload pero hay bebés, usar el primero
         elif babies_context:
             target_baby_id = babies_context[0]['id']
             target_baby_name = babies_context[0].get('name', 'tu bebé')
-            print(f"⚠️ [PROFILE] Usando el primer bebé: {target_baby_id}")
+            # print(f"⚠️ [PROFILE] Usando el primer bebé: {target_baby_id}")
         
         if target_baby_id:
             # Preparar datos para enviar al frontend (NO guardar aún)
@@ -515,7 +525,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
                 "keywords": detected_profile_keywords,
                 "count": len(detected_profile_keywords)
             }
-            print(f"📋 [PROFILE] Preparados {len(detected_profile_keywords)} keywords para confirmación del usuario")
+            # print(f"📋 [PROFILE] Preparados {len(detected_profile_keywords)} keywords para confirmación del usuario")
         else:
             print(f"⚠️ [PROFILE] No se pudo determinar baby_id para keywords")
     
@@ -543,10 +553,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         
         # Verificar si es una consulta de referencias ANTES de hacer búsqueda RAG
         is_reference_query = ReferenceDetector.detect_reference_query(payload.message)
-        print(f"🔍 [DEBUG] ¿Es consulta de referencias? {is_reference_query}")
+        # print(f"🔍 [DEBUG] ¿Es consulta de referencias? {is_reference_query}")
         
         if is_reference_query:
-            print(f"🔍 [REFERENCIAS] Detectada consulta de referencias - NO se guardará en cache")
+            # print(f"🔍 [REFERENCIAS] Detectada consulta de referencias - NO se guardará en cache")
             # Para consultas de referencias, usar búsqueda simple sin guardar en cache
             rag_context = get_rag_context_simple(payload.message, search_id="reference_query")
             consulted_sources = []  # No guardar fuentes para consultas de referencias
@@ -559,7 +569,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             source_cache.store_sources(user_id, consulted_sources, payload.message, "user_query")
     else:
         is_reference_query = False
-        print(f"👋 [DEBUG] Es saludo simple - no se procesa RAG ni cache")
+        # print(f"👋 [DEBUG] Es saludo simple - no se procesa RAG ni cache")
         
         needs_night_weaning = any(keyword in message_lower for keyword in NIGHT_WEANING_KEYWORDS)
         needs_partner = any(keyword in message_lower for keyword in PARTNER_KEYWORDS)
@@ -606,19 +616,8 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         filter_by_baby=filter_by_baby
     )
 
-    # 2️⃣ Construir el prompt con el idioma detectado PRIMERO
-    lang_directive = build_system_prompt_for_lumi(lang)
-    
-    # 3️⃣ Construir el prompt general (Lumi + idioma)
+    # Construir el prompt maestro (el sistema base ya instruye al modelo sobre el idioma)
     formatted_system_prompt = await build_system_prompt(payload, user_context, routines_context, combined_rag_context)
-
-    # 4️⃣ Agregar directiva de idioma de forma más explícita y prioritaria
-    formatted_system_prompt = f"""🌐 INSTRUCCIÓN CRÍTICA DE IDIOMA:
-{lang_directive}
-
-IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No uses ningún otro idioma.
-
-{formatted_system_prompt}"""
 
     # Detectar tipo de consulta y agregar template específico
     specific_template = detect_consultation_type_and_load_template(payload.message)
@@ -647,9 +646,8 @@ IMPORTANTE: Toda tu respuesta DEBE estar completamente en {lang.upper()}. No use
             "content": "=== FIN DEL CONTEXTO - Responde de forma original y específica ==="
         })
     
-    # 5️⃣ Reforzar el idioma en el mensaje del usuario
-    user_message_with_lang = f"[Responder en {lang.upper()}] {payload.message}"
-    messages.append({"role": "user", "content": user_message_with_lang})
+    # Agregar mensaje del usuario tal cual (se probará la instrucción del prompt base)
+    messages.append({"role": "user", "content": payload.message})
 
     body = {
         "model": OPENAI_MODEL,

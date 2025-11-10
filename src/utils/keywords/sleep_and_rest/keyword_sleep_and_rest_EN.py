@@ -40,12 +40,17 @@ KEYWORDS_SLEEP_EN = {
                     "doesn’t differentiate sleep time from play time"
                 ],
                 "starting_to_distinguish": [
-                    "starting to distinguish",
+                    "starting to distinguish day and night",
+                    "can distinguish day and night",
+                    "can distinguish between day and night",
                     "starting to distinguish sleep time from play time",
                     "beginning to differentiate sleep time and play time",
                     "beginning to differentiate sleep time and play time",
-                    "starting to differentiate sleep time and play time",
-                    "can distinguish between day and night"
+                    "starting to differentiate sleep time and play time"
+                    "can distinguish sleep time from play time",
+                    "can differentiate sleep time and play time",
+                    "can differentiate sleep time and play time",
+                    "can differentiate sleep time and play time"
                 ],
                 "consolidated": [
                     "consolidated",
@@ -396,7 +401,7 @@ KEYWORDS_SLEEP_EN = {
                     "wakes up a lot",
                     "wakes up often",
                     "many awakenings",
-                    "doesn’t sleep continuously"
+                    "doesn´t sleep continuously"
                 ],
                 "long_blocks": [
                     "with long blocks",

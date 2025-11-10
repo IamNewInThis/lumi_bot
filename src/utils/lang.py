@@ -7,28 +7,34 @@ DetectorFactory.seed = 0
 SUPPORTED = {"es", "en", "pt"}  # español, inglés, portugués (Brasil)
 # Palabras clave exclusivas de cada idioma para mejorar la detección
 PORTUGUESE_MARKERS = {
-    'quero', 'você', 'voce', 'não', 'nao', 'está', 'esta', 'estão', 'estao',
-    'também', 'tambem', 'comigo', 'fazer', 'muito', 'obrigado', 'obrigada',
-    'tchau', 'oi', 'sim', 'nós', 'nos', 'vocês', 'voces', 'são', 'sao',
-    'têm', 'tem', 'mais', 'por favor', 'bom dia', 'boa tarde', 'boa noite',
-    'tudo bem', 'com', 'para', 'onde', 'quando', 'porque', 'porquê'
+    'saudade', 'filho', 'filha', 'mãe', 'mae', 'pai', 'bebê', 'bebe',
+    'fralda', 'cólica', 'colica', 'leitinho', 'amamentação', 'amamentacao',
+    'berço', 'berco', 'soninho', 'soneca', 'chorando', 'acolher',
+    'maternidade', 'cafuné', 'cafune', 'dengo', 'brincadeira', 'acolhimento',
+    'carinho', 'desmame', 'canguru', 'banho morno', 'rede', 'mordedor',
+    'marcos do desenvolvimento', 'desenvolvimento', 'sono tranquilo',
+    'fôlego',
 }
 
 SPANISH_MARKERS = {
-    'quiero', 'tú', 'tu', 'usted', 'ustedes', 'también', 'tambien', 'conmigo',
-    'hacer', 'mucho', 'gracias', 'adiós', 'adios', 'hola', 'sí', 'si',
-    'nosotros', 'vosotros', 'tienen', 'buenos días', 'buenos dias',
-    'buenas tardes', 'buenas noches', 'qué tal', 'que tal', 'con',
-    'para', 'dónde', 'donde', 'cuándo', 'cuando', 'porque', 'porqué'
+    'hola', 'quiero', 'quieres', 'dónde', 'cuando', 'porque','mamá',
+    'mama', 'papá', 'papa', 'niño', 'niña', 'nino', 'nina',
+    'colecho', 'pañal', 'panal', 'llanto', 'abrazos', 'cariño', 'carino',
+    'crianza', 'destete', 'porteo', 'puerperio', 'cansancio', 'berrinche',
+    'rabieta', 'maternidad', 'biberón', 'biberon', 'chupete', 'pickler',
+    'respira conmigo', 'acompañar', 'acompanar', 'regazo' , 'calorcito',
+    'últimamente', 'durmiendo', 'duerme','corrido', 'muchas', 'veces'
 }
 
 ENGLISH_MARKERS = {
-    'want', 'you', 'with', 'for', 'where', 'when', 'because', 'hello',
-    'hi', 'thank you', 'thanks', 'goodbye', 'bye', 'yes', 'no',
-    'please', 'good morning', 'good afternoon', 'good evening', 'how are you',
-    'sleep', 'sleeping', 'nap', 'night', 'day', 'baby', 'has', 'have',
-    'been', 'is', 'are', 'good', 'well', 'lately', 'between', 'she', 'he',
-    'their', 'can', 'distinguish'
+    'want','sleep' , 'you', 'with', 'for', 'where', 'when', 'because', 'hello',
+    'thank you', 'thanks', 'goodbye', 'food', 'milk', 'diaper', 'nap',
+    'cycles', 'crying', 'cuddle', 'parenting', 'bottle', 'pacifier',
+    'colics', 'crib', 'bedtime', 'tired', 'maternity', 'playtime',
+    'attachment', 'nursing', 'swaddling', 'teething', 'milestone',
+    'development', 'babywearing', 'gentle parenting', 'positive discipline',
+    'please', 'good night', 'good morning', 'doesn´t', 'doesnt', 'isn´t', 'isnt',
+    'sleeping', 'baby', 'tired', 'play', 'time', 'night', 'day', 'feed', 'hungry',
 }
 
 SPANISH_UNIQUE_CHARS = {'ñ', '¡', '¿'}
@@ -53,7 +59,7 @@ def count_marker_hits(text: str, markers: set) -> int:
     return hits
 
 
-def detect_lang(text: str, default: str = "es") -> str:
+def detect_lang(text: str, default: str = "es", return_matches: bool = False):
     """
     Detecta idioma del texto. Devuelve 'es', 'en' o 'pt'.
     
@@ -62,108 +68,67 @@ def detect_lang(text: str, default: str = "es") -> str:
     2. Si no hay coincidencias claras, usa langdetect
     3. Si falla o viene vacío, retorna default
     """
+    empty_matches = {'pt': [], 'es': [], 'en': []}
+    
     if not text or not text.strip():
-        return default
+        return (default, empty_matches) if return_matches else default
 
     text_lower = text.lower()
     has_spanish_chars = any(ch in text_lower for ch in SPANISH_UNIQUE_CHARS)
     has_portuguese_chars = any(ch in text_lower for ch in PORTUGUESE_UNIQUE_CHARS)
     
     # 1️⃣ Contar coincidencias con palabras clave de cada idioma
-    pt_hits = count_marker_hits(text_lower, PORTUGUESE_MARKERS)
-    es_hits = count_marker_hits(text_lower, SPANISH_MARKERS)
-    en_hits = count_marker_hits(text_lower, ENGLISH_MARKERS)
+    pt_matches = [marker for marker in PORTUGUESE_MARKERS if marker in text_lower]
+    es_matches = [marker for marker in SPANISH_MARKERS if marker in text_lower]
+    en_matches = [marker for marker in ENGLISH_MARKERS if marker in text_lower]
+    
+    pt_count = len(pt_matches)
+    es_count = len(es_matches)
+    en_count = len(en_matches)
+    
+    if pt_matches:
+        print(f"🇧🇷 [LANG] Markers PT detectados: {pt_matches}")
+    if es_matches:
+        print(f"🇪🇸 [LANG] Markers ES detectados: {es_matches}")
+    if en_matches:
+        print(f"🇬🇧 [LANG] Markers EN detectados: {en_matches}")
+    
+    # 2️⃣ Si hay coincidencias claras, retornar el idioma con más coincidencias
+    max_count = max(pt_count, es_count, en_count)
+    
+    def finalize(result_lang: str):
+        if return_matches:
+            return result_lang, {
+                'pt': pt_matches,
+                'es': es_matches,
+                'en': en_matches
+            }
+        return result_lang
+    
+    if max_count > 0:
+        if pt_count == max_count and pt_count > es_count:
+            print(f"🇧🇷 [LANG] Portugués detectado por keywords (score: {pt_count})")
+            return finalize("pt")
+        elif es_count == max_count and es_count > pt_count:
+            print(f"🇪🇸 [LANG] Español detectado por keywords (score: {es_count})")
+            return finalize("es")
+        elif en_count == max_count and en_count > max(pt_count, es_count):
+            print(f"🇬🇧 [LANG] Inglés detectado por keywords (score: {en_count})")
+            return finalize("en")
 
-    # Bonificar la detección si aparecen caracteres exclusivos de un idioma
-    pt_score = pt_hits + (1 if has_portuguese_chars else 0)
-    es_score = es_hits + (1 if has_spanish_chars else 0)
-    en_score = en_hits
-    scores = {'pt': pt_score, 'es': es_score, 'en': en_score}
-
-    sorted_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-    max_score = sorted_scores[0][1]
-    second_score = sorted_scores[1][1] if len(sorted_scores) > 1 else 0
-    top_langs = [lang for lang, score in scores.items() if score == max_score and score > 0]
-
-    langdetect_cache = {}
-
-    def get_langdetect():
-        if langdetect_cache:
-            return langdetect_cache['lang'], langdetect_cache['prob']
-        try:
-            lang_probs = detect_langs(text)
-            primary = lang_probs[0] if lang_probs else None
-            lang = primary.lang if primary else detect(text)
-            prob = getattr(primary, "prob", None) if primary else None
-            prob_suffix = f" (prob: {prob:.2f})" if prob is not None else ""
-            print(f"🔍 [LANG] Idioma detectado por librería: {lang}{prob_suffix}")
-        except LangDetectException:
-            print(f"⚠️ [LANG] Error en detección con librería, usando default provisional: {default}")
-            lang = default
-            prob = None
-        langdetect_cache['lang'] = lang
-        langdetect_cache['prob'] = prob
-        return lang, prob
-
-    pt_override_logged = False
-
-    def resolve_langdetect_choice(choice: str) -> str:
-        nonlocal pt_override_logged
-        if choice == "pt" and es_score > pt_score and es_score > 0:
-            if not pt_override_logged:
-                print("⚠️ [LANG] La librería sugirió 'pt' pero las señales contextuales coinciden más con español. Forzando 'es'.")
-                pt_override_logged = True
-            return "es"
-        return choice
-
-    if top_langs:
-        if len(top_langs) == 1:
-            candidate = top_langs[0]
-            unique_bonus = (candidate == "es" and has_spanish_chars) or (candidate == "pt" and has_portuguese_chars)
-            strong_unique = max_score >= 2 or (max_score == 1 and second_score == 0 and unique_bonus)
-            if strong_unique:
-                flag = "🇧🇷" if candidate == "pt" else "🇪🇸" if candidate == "es" else "🇬🇧"
-                print(f"{flag} [LANG] {candidate.upper()} detectado por keywords (score: {max_score})")
-                return candidate
-
-            langdetect_lang, langdetect_prob = get_langdetect()
-            if langdetect_lang in SUPPORTED:
-                resolved = resolve_langdetect_choice(langdetect_lang)
-                if langdetect_lang == candidate:
-                    print(f"🤝 [LANG] Coincidencia entre keywords y librería: {resolved} (score: {max_score})")
-                    return resolved
-                if langdetect_prob and langdetect_prob >= 0.6:
-                    print(f"⚠️ [LANG] Conflicto keywords '{candidate}' vs librería '{langdetect_lang}'. Priorizando librería (prob: {langdetect_prob:.2f})")
-                    return resolved
-                print(f"⚠️ [LANG] Evidencia débil para '{candidate}' por keywords, usando librería: {resolved}")
-                return resolved
-
-            print(f"⚠️ [LANG] Evidencia débil para '{candidate}' y sin librería disponible, usando default: {default}")
-            return default
-
-        langdetect_lang, langdetect_prob = get_langdetect()
-        if langdetect_lang in top_langs and langdetect_lang in SUPPORTED:
-            resolved = resolve_langdetect_choice(langdetect_lang)
-            prob_msg = f" (prob: {langdetect_prob:.2f})" if langdetect_prob is not None else ""
-            print(f"⚖️ [LANG] Empate en keywords {top_langs}, librería eligió '{resolved}'{prob_msg}")
-            return resolved
-
-        preferred_order = [default, "es", "pt", "en"]
-        for candidate in preferred_order:
-            if candidate in top_langs:
-                print(f"⚖️ [LANG] Empate en detección por keywords {top_langs}, priorizando '{candidate}' (score: {scores[candidate]})")
-                return candidate
-
-        if langdetect_lang in SUPPORTED:
-            resolved = resolve_langdetect_choice(langdetect_lang)
-            print(f"⚠️ [LANG] Empate sin resolución clara, usando librería: {resolved}")
-            return resolved
-
-        return default
-
-    langdetect_lang, _ = get_langdetect()
-    if langdetect_lang in SUPPORTED:
-        return resolve_langdetect_choice(langdetect_lang)
-
-    print(f"⚠️ [LANG] Idioma '{langdetect_lang}' no soportado, usando default: {default}")
-    return default
+    # 3️⃣ Si no hay coincidencias claras o hay empate, usar langdetect
+    try:
+        lang = detect(text)
+        print(f"🔍 [LANG] Idioma detectado por librería: {lang}")
+        
+        # langdetect devuelve 'pt' para portugués de Brasil
+        if lang in SUPPORTED:
+            return finalize(lang)
+        
+        # Si detecta algo distinto (ej. 'fr'), usa default
+        print(f"⚠️ [LANG] Idioma '{lang}' no soportado, usando default: {default}")
+        return finalize(default)
+        
+    except LangDetectException:
+        print(f"⚠️ [LANG] Error en detección, usando default: {default}")
+        return finalize(default)

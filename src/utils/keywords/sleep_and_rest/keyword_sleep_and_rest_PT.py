@@ -268,9 +268,7 @@ KEYWORDS_SLEEP_PT = {
             "main_sleep_association": {
                 "breast": [
                     "dou peito",
-                    "com peito",
-                    "adormece quando a amamentação",
-                    "enquanto eu a amamento",
+                    "com peito"
                 ],
                 "bottle": [
                     "dorme com mamadeira",
