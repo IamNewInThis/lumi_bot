@@ -6,19 +6,19 @@ DetectorFactory.seed = 0
 SUPPORTED = {"es", "en", "pt"}  # español, inglés, portugués (Brasil)
 # Palabras clave exclusivas de cada idioma para mejorar la detección
 PORTUGUESE_MARKERS = {
-    'quero', 'você', 'voce', 'não', 'nao', 'está', 'esta', 'estão', 'estao',
-    'também', 'tambem', 'comigo', 'fazer', 'muito', 'obrigado', 'obrigada',
-    'tchau', 'oi', 'sim', 'nós', 'nos', 'vocês', 'voces', 'são', 'sao',
-    'têm', 'tem', 'mais', 'por favor', 'bom dia', 'boa tarde', 'boa noite',
-    'tudo bem', 'com', 'para', 'onde', 'quando', 'porque', 'porquê'
+    'saudade', 'filho', 'filha', 'mãe', 'mae', 'pai', 'bebê', 'bebe',
+    'fralda', 'cólica', 'colica', 'leitinho', 'amamentação', 'amamentacao',
+    'berço', 'berco', 'soninho', 'soneca', 'chorando', 'acolher',
+    'maternidade', 'cafuné', 'cafune', 'dengo', 'brincadeira', 'acolhimento',
+    'carinho', 'desmame', 'canguru', 'banho morno', 'rede'
 }
 
 SPANISH_MARKERS = {
-    'quiero', 'tú', 'tu', 'usted', 'ustedes', 'también', 'tambien', 'conmigo',
-    'hacer', 'mucho', 'gracias', 'adiós', 'adios', 'hola', 'sí', 'si',
-    'nosotros', 'vosotros', 'tienen', 'buenos días', 'buenos dias',
-    'buenas tardes', 'buenas noches', 'qué tal', 'que tal', 'con',
-    'para', 'dónde', 'donde', 'cuándo', 'cuando', 'porque', 'porqué'
+    'mamá', 'mama', 'papá', 'papa', 'niño', 'niña', 'nino', 'nina',
+    'colecho', 'pañal', 'panal', 'llanto', 'abrazos', 'cariño', 'carino',
+    'crianza', 'destete', 'porteo', 'puerperio', 'cansancio', 'berrinche',
+    'rabieta', 'maternidad', 'biberón', 'biberon', 'chupete', 'pickler',
+    'respira conmigo', 'acompañar', 'acompanar', 'regazo'
 }
 
 ENGLISH_MARKERS = {
