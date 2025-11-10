@@ -477,7 +477,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     detected_profile_keywords = detect_profile_keywords_fuzzy(
         payload.message, 
         lang, 
-        threshold=90,  # Umbral alto (90%) para evitar falsos positivos
+        threshold=95,  # Umbral alto (95%) para evitar falsos positivos
         age_months=baby_age_months,
         verbose=True
     )
