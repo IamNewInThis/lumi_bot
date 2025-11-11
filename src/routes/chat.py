@@ -546,7 +546,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     )
 
     # Construir el prompt maestro (el sistema base ya instruye al modelo sobre el idioma)
-    formatted_system_prompt = await build_system_prompt(payload, user_context, routines_context, combined_rag_context)
+    formatted_system_prompt = await build_system_prompt(payload, user_context, routines_context, combined_rag_context, user["id"])
 
     # Detectar tipo de consulta y agregar template específico
     specific_template = detect_consultation_type_and_load_template(payload.message)
@@ -578,7 +578,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     
     # Agregar mensaje del usuario tal cual (se probará la instrucción del prompt base)
     messages.append({"role": "user", "content": payload.message})
-    print(messages)
+    # print(messages)
 
     body = {
         "model": OPENAI_MODEL,

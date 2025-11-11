@@ -333,7 +333,7 @@ async def detect_routine_in_user_message(user_id: str, message: str, babies_cont
             message, 
             babies_context
         )
-        print(f"🕐 Rutina detectada: {detected_routine}")
+        # print(f"🕐 Rutina detectada: {detected_routine}")
         
         # Si se detecta una rutina, guardar en caché y preguntar confirmación
         if detected_routine and RoutineDetector.should_ask_confirmation(detected_routine):
@@ -346,7 +346,7 @@ async def detect_routine_in_user_message(user_id: str, message: str, babies_cont
             
             return confirmation_message
         else:
-            print("❌ No se debe preguntar confirmación de rutina")
+            # print("❌ No se debe preguntar confirmación de rutina")
             return None
         
     except Exception as e:
@@ -604,7 +604,7 @@ def format_baby_profile_for_context(babies_data: list, lang: str = 'es') -> str:
     else:
         return "Los bebés no tienen información de perfil detallada disponible."
 
-async def build_system_prompt(payload, user_context, routines_context, combined_rag_context):
+async def build_system_prompt(payload, user_context, routines_context, combined_rag_context, user_id=None):
     """
     Construye el prompt del sistema completo con todas las secciones necesarias.
     """
@@ -645,12 +645,27 @@ async def build_system_prompt(payload, user_context, routines_context, combined_
     else:
         print("⚠️ No se pudo cargar el dataset de ejemplos Lumi")
 
-    # Formatear el perfil que viene en el payload
+    # Obtener y formatear el perfil detallado de los bebés
     profile_text = ""
-    if payload.profile:
+    if user_id:
+        try:
+            # Obtener información completa de los bebés con sus perfiles
+            babies_with_profiles = await get_babies_profile(user_id)
+            if babies_with_profiles:
+                # Usar la función existente para formatear el contexto del perfil
+                profile_text = format_baby_profile_for_context(babies_with_profiles, lang='es')
+                print(f"✅ Perfil de bebés cargado: {len(babies_with_profiles)} bebé(s)")
+            else:
+                print("⚠️ No se encontraron bebés con perfiles para este usuario")
+        except Exception as e:
+            print(f"❌ Error obteniendo perfil de bebés: {e}")
+            profile_text = ""
+    
+    # Agregar perfil básico del payload si existe (como fallback)
+    if payload.profile and not profile_text:
         profile_data = payload.profile
         profile_text = (
-            "**Perfil actual en esta consulta:**\n"
+            "**Perfil básico en esta consulta:**\n"
             f"- Fecha de nacimiento: {profile_data.get('dob')}\n"
         )
     
@@ -679,16 +694,5 @@ async def build_system_prompt(payload, user_context, routines_context, combined_
     # Log de longitud del prompt para debug
     prompt_length = len(formatted_system_prompt)
     print(f"📏 Longitud del prompt del sistema: {prompt_length} caracteres")
-    
-    # Log para verificar que los ejemplos JSON están incluidos
-    if "DATASET DE INSTRUCCIONES LUMI" in formatted_system_prompt:
-        print("✅ Dataset de ejemplos confirmado en el system prompt")
-        # Mostrar una muestra del contenido del dataset
-        dataset_start = formatted_system_prompt.find("## DATASET DE INSTRUCCIONES LUMI")
-        if dataset_start != -1:
-            dataset_sample = formatted_system_prompt[dataset_start:dataset_start+200]
-            print(f"📋 Muestra del dataset: {dataset_sample}...")
-    else:
-        print("❌ Dataset de ejemplos NO encontrado en el system prompt")
-    
+        
     return formatted_system_prompt
