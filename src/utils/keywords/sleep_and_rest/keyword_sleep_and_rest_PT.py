@@ -42,10 +42,8 @@ KEYWORDS_SLEEP_PT = {
                 ],
                 "starting_to_distinguish": [
                     "começa a distinguir",
-                    "começa a distinguir a hora de dormir da de brincar",
-                    "começa a diferenciar a hora de dormir da de brincar",
-                    "começa a diferenciar a hora de dormir da de brincar",
-                    "começa a diferenciar a hora de dormir da e da brincar",
+                    "começa a distinguir entre o dia e a noite",
+                    "começa a distinguir dia e noite",
                     "consegue distinguir dia e noite",
                     "consegue distinguir entre o dia e a noite"
                 ],
@@ -58,7 +56,7 @@ KEYWORDS_SLEEP_PT = {
                 ],
             },
             "sleep_location": {
-                "crib": ["berço",
+                "crib": [
                     "berço",
                     "em seu berço",
                     "dorme em berço",

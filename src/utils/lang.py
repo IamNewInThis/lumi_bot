@@ -27,7 +27,7 @@ SPANISH_MARKERS = {
 }
 
 ENGLISH_MARKERS = {
-    'want','sleep' , 'you', 'with', 'for', 'where', 'when', 'because', 'hello',
+    'want','sleep','sleeps' , 'you', 'with', 'for', 'where', 'when', 'because', 'hello',
     'thank you', 'thanks', 'goodbye', 'food', 'milk', 'diaper', 'nap',
     'cycles', 'crying', 'cuddle', 'parenting', 'bottle', 'pacifier',
     'colics', 'crib', 'bedtime', 'tired', 'maternity', 'playtime',
@@ -35,6 +35,9 @@ ENGLISH_MARKERS = {
     'development', 'babywearing', 'gentle parenting', 'positive discipline',
     'please', 'good night', 'good morning', 'doesn´t', 'doesnt', 'isn´t', 'isnt',
     'sleeping', 'baby', 'tired', 'play', 'time', 'night', 'day', 'feed', 'hungry',
+    'irritability', 'breastfeed', 'breastfeeding','lullaby', 'short sleeve', 'long sleeve',
+    
+    
 }
 
 SPANISH_UNIQUE_CHARS = {'ñ', '¡', '¿'}
