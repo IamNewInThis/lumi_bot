@@ -1,4 +1,5 @@
 # src/services/chat_service.py
+import json
 from datetime import datetime
 from pathlib import Path
 from ..rag.retriever import supabase
@@ -15,7 +16,7 @@ today = datetime.now().strftime("%d/%m/%Y %H:%M")
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 SECTIONS_DIR = PROMPTS_DIR / "sections"
 TEMPLATES_DIR = PROMPTS_DIR / "templates"
-EXAMPLES_DIR = PROMPTS_DIR / "examples"
+EXAMPLES_DIR = Path(__file__).parent.parent / "examples" 
 
 # Keywords copiadas de chat.py
 ROUTINE_KEYWORDS = {
@@ -51,25 +52,45 @@ PARTNER_KEYWORDS = {
     "apoyo", "involucrar", "participar", "roles", "responsabilidades"
 }
 
-# Funciones de utilidad copiadas de chat.py
-def load_instruction_dataset():
+def load_example_dataset():
     """
-    Carga el dataset de ejemplos, estos ejemplos fueron tomados desde el GPT de Sol
-    Para darle un mejor contexto al modelo de como debe responder.
-    ubicado en prompts/examples y lo incluye como guía semántica base.
+    Carga el dataset de ejemplos JSONL desde src/examples.
+    Convierte las conversaciones JSON a formato texto para el system prompt.
     """
-    candidate_paths = [
-        EXAMPLES_DIR / "lumi_instruction_dataset_v1.md",
-        PROMPTS_DIR / "system" / "lumi_instruction_dataset_v1.md",
-    ]
-
-    dataset_path = next((path for path in candidate_paths if path.exists()), None)
-    if dataset_path:
-        with open(dataset_path, "r", encoding="utf-8") as dataset_file:
-            content = dataset_file.read().strip()
-            header = "## DATASET DE INSTRUCCIONES LUMI (v1)\nUsar como guía semántica general para tono, estructura y progresión de respuesta.\n\n"
+    dataset_path = EXAMPLES_DIR / "lumi_instruction_dataset_v1.jsonl"
+    
+    if not dataset_path.exists():
+        print(f"⚠️ Dataset no encontrado: {dataset_path}")
+        return ""
+    
+    header = "## DATASET DE EJEMPLOS LUMI (v1)\nUsar como guía de referencia para la generación de respuestas.\n\n"
+    
+    try:
+        examples_text = []
+        with open(dataset_path, "r", encoding="utf-8") as jsonl_file:
+            for line_num, line in enumerate(jsonl_file, 1):
+                if line.strip():
+                    data = json.loads(line)
+                    if "messages" in data:
+                        example_text = f"### Ejemplo {line_num}:\n"
+                        for msg in data["messages"]:
+                            role = msg.get("role", "unknown").upper()
+                            content = msg.get("content", "").strip()
+                            if content:
+                                example_text += f"**{role}**: {content}\n\n"
+                        examples_text.append(example_text)
+        
+        if examples_text:
+            content = "\n".join(examples_text)
+            print(f"📚 Cargados {len(examples_text)} ejemplos desde {dataset_path.name}")
             return header + content
-    return ""
+        else:
+            print(f"⚠️ No se pudieron cargar ejemplos desde {dataset_path.name}")
+            return ""
+                    
+    except Exception as e:
+        print(f"❌ Error cargando dataset JSONL: {e}")
+        return ""
 
 def load_system_prompt(section_files=None):
     """
@@ -158,7 +179,6 @@ def detect_consultation_type_and_load_template(message):
     
     return ""
 
-
 async def handle_knowledge_confirmation(user_id: str, message: str):
     """
     Maneja la confirmación de conocimiento pendiente.
@@ -219,7 +239,6 @@ async def handle_knowledge_confirmation(user_id: str, message: str):
 
     confirmation_cache.clear_pending_confirmation(user_id)
     return {"answer": "👌 Entendido, no guardaré esa información.", "usage": {}}
-
 
 async def handle_routine_confirmation(user_id: str, message: str):
     """
@@ -301,7 +320,6 @@ async def handle_routine_confirmation(user_id: str, message: str):
         routine_confirmation_cache.clear_pending_confirmation(user_id)
         return {"answer": "👌 Entendido, no guardaré esa rutina.", "usage": {}}
 
-
 async def detect_routine_in_user_message(user_id: str, message: str, babies_context: list):
     """
     Detecta rutinas en el mensaje del usuario y maneja la confirmación.
@@ -336,7 +354,6 @@ async def detect_routine_in_user_message(user_id: str, message: str, babies_cont
         import traceback
         traceback.print_exc()
         return None
-
 
 async def detect_routine_in_response(user_id: str, assistant_response: str, babies_context: list):
     """
@@ -403,7 +420,6 @@ async def detect_routine_in_response(user_id: str, assistant_response: str, babi
     except Exception as e:
         print(f"Error en detección simple de rutinas: {e}")
         return None
-
 
 async def detect_knowledge_in_message(user_id: str, message: str, babies_context: list, selected_baby_id: str = None):
     """
@@ -487,6 +503,106 @@ async def detect_knowledge_in_message(user_id: str, message: str, babies_context
         traceback.print_exc()
         return None
 
+async def get_babies_profile(user_id: str):
+    """
+    Obtiene información detallada de los bebés del usuario incluyendo su perfil
+    desde las tablas babies, baby_profile, baby_profile_value y profile_category.
+    
+    Retorna:
+        Lista de bebés con su información básica y perfil detallado agrupado por categorías.
+        Ejemplo de estructura retornada:
+        [
+          {
+            "id": "uuid",
+            "name": "Jacinta",
+            "birthdate": "2025-05-08",
+            "gender": "female",
+            "profile": {
+              "sleep and rest": {
+                "sleep_location": {"value_es": "cuna", "value_en": "crib"},
+                "day_night_difference": {"value_es": "comienza a distinguir", "value_en": "starting to distinguish"}
+              },
+              "daily cares": {
+                "dental_care_type": {"value_es": "pasta sin flúor", "value_en": "toothpaste without fluoride"}
+              }
+            }
+          }
+        ]
+    """
+    try:
+        # Usar función RPC optimizada para obtener bebés con perfil completo
+        response = supabase.rpc('get_babies_with_profile_data', {
+            'p_user_id': user_id
+        }).execute()
+        
+        if response.data is None:
+            print(f"👶 No se encontraron bebés para user_id: {user_id}")
+            return []
+        
+        babies_data = response.data
+        
+        print(f"👶 Obtenidos {len(babies_data)} bebé(s) con perfiles para user_id: {user_id}")
+        
+        # Log de ejemplo de datos obtenidos (solo para debugging)
+        if babies_data and len(babies_data) > 0:
+            first_baby = babies_data[0]
+            profile_categories = list(first_baby.get('profile', {}).keys())
+            print(f"📋 Categorías de perfil disponibles: {profile_categories}")
+        
+        return babies_data
+        
+    except Exception as e:
+        print(f"❌ Error al obtener el perfil de los bebés: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+def format_baby_profile_for_context(babies_data: list, lang: str = 'es') -> str:
+    """
+    Formatea la información de perfil de los bebés para incluir en el system prompt.
+    
+    Args:
+        babies_data: Lista de bebés con sus perfiles obtenida de get_babies_profile
+        lang: Idioma para mostrar los valores ('es', 'en', 'pt')
+    
+    Returns:
+        String formateado con la información de perfil de los bebés
+    """
+    if not babies_data:
+        return "No hay información de perfil disponible."
+    
+    formatted_profiles = []
+    
+    for baby in babies_data:
+        baby_name = baby.get('name', 'Bebé sin nombre')
+        baby_age = baby.get('birthdate', '')
+        profile_data = baby.get('profile', {})
+        
+        if not profile_data:
+            continue
+        
+        baby_profile_lines = [f"👶 **{baby_name}** ({baby_age})"]
+        
+        for category, category_data in profile_data.items():
+            if category_data:  # Solo mostrar si hay datos
+                baby_profile_lines.append(f"  📂 {category.title()}:")
+                
+                for key, values in category_data.items():
+                    # Obtener valor en el idioma especificado, con fallback a español
+                    value_key = f'value_{lang}'
+                    display_value = values.get(value_key) or values.get('value_es') or 'N/A'
+                    
+                    # Formatear key para que sea más legible
+                    formatted_key = key.replace('_', ' ').title()
+                    baby_profile_lines.append(f"    • {formatted_key}: {display_value}")
+        
+        if len(baby_profile_lines) > 1:  # Solo agregar si tiene contenido además del nombre
+            formatted_profiles.append('\n'.join(baby_profile_lines))
+    
+    if formatted_profiles:
+        return "## PERFILES DETALLADOS DE LOS BEBÉS:\n\n" + '\n\n'.join(formatted_profiles)
+    else:
+        return "Los bebés no tienen información de perfil detallada disponible."
 
 async def build_system_prompt(payload, user_context, routines_context, combined_rag_context):
     """
@@ -520,13 +636,15 @@ async def build_system_prompt(payload, user_context, routines_context, combined_
         system_prompt_template += specific_template
         print(f"🎯 Template específico detectado y agregado")
 
-    instruction_dataset = load_instruction_dataset()
+    instruction_dataset = load_example_dataset()
 
-    # Siempre agregar dataset general de instrucciones Lumi (v1)
+    # Siempre agregar dataset general de ejemplos Lumi (v1)
     if instruction_dataset:
         system_prompt_template += "\n\n" + instruction_dataset
-        print("📚 Dataset lumi_instruction_dataset_v1.md cargado correctamente")
-    
+        print(f"📚 Dataset de ejemplos Lumi cargado correctamente - {len(instruction_dataset)} caracteres")
+    else:
+        print("⚠️ No se pudo cargar el dataset de ejemplos Lumi")
+
     # Formatear el perfil que viene en el payload
     profile_text = ""
     if payload.profile:
@@ -534,7 +652,6 @@ async def build_system_prompt(payload, user_context, routines_context, combined_
         profile_text = (
             "**Perfil actual en esta consulta:**\n"
             f"- Fecha de nacimiento: {profile_data.get('dob')}\n"
-            f"- Alimentación: {profile_data.get('feeding')}\n"
         )
     
     # Cantidad de caracteres que se le pasará del rag al prompt, de conocimiento
@@ -556,12 +673,22 @@ async def build_system_prompt(payload, user_context, routines_context, combined_
         - NO copies la estructura, formato o estilo de mensajes anteriores en el historial
         - Cada respuesta debe ser ORIGINAL y específica para la consulta actual
         - Varía tu estructura: usa párrafos fluidos, listas simples, o formato según el contenido
-        - Evita patrones repetitivos como siempre usar "## 1. Título" o listas numeradas idénticas
         - Responde de forma natural y conversacional, no como una plantilla rígida
     """
         
     # Log de longitud del prompt para debug
     prompt_length = len(formatted_system_prompt)
     print(f"📏 Longitud del prompt del sistema: {prompt_length} caracteres")
+    
+    # Log para verificar que los ejemplos JSON están incluidos
+    if "DATASET DE INSTRUCCIONES LUMI" in formatted_system_prompt:
+        print("✅ Dataset de ejemplos confirmado en el system prompt")
+        # Mostrar una muestra del contenido del dataset
+        dataset_start = formatted_system_prompt.find("## DATASET DE INSTRUCCIONES LUMI")
+        if dataset_start != -1:
+            dataset_sample = formatted_system_prompt[dataset_start:dataset_start+200]
+            print(f"📋 Muestra del dataset: {dataset_sample}...")
+    else:
+        print("❌ Dataset de ejemplos NO encontrado en el system prompt")
     
     return formatted_system_prompt

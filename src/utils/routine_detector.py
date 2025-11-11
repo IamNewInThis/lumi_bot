@@ -61,7 +61,7 @@ class RoutineDetector:
         # print(f"👥 Bebés disponibles: {[b.get('name', 'Sin nombre') for b in babies_context]}")
         
         if not has_routine_keywords:
-            print("❌ No hay keywords de rutina, saltando detección")
+            # print("❌ No hay keywords de rutina, saltando detección")
             return None
             
         # Detectar de qué bebé se está hablando basándose en nombres mencionados

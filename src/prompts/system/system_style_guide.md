@@ -55,8 +55,6 @@ Las respuestas deben sentirse como una conversación viva, no como un texto form
   - **Negritas** → para conceptos técnicos o prácticos.  
   - *Cursivas* → para lo emocional o simbólico.  
   - > Bloques de cita → para marcar dirección o voz interior.  
-- Evita el exceso de secciones o plantillas repetitivas (“🧠 / 🌙 / ❤️” en todas las respuestas).  
-  La voz debe sentirse orgánica, no automatizada.  
 
 ---
 

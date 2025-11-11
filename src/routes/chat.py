@@ -87,74 +87,6 @@ def is_simple_greeting(message: str) -> bool:
     normalized = normalize_for_greeting(message)
     return normalized in GREETING_PHRASES
 
-def load_instruction_dataset():
-    """
-    Carga el dataset de ejemplos, estos ejemplos fueron tomados desde el GPT de Sol
-    Para darle un mejor contexto al modelo de como debe responder.
-    ubicado en prompts/examples y lo incluye como guía semántica base.
-    """
-    candidate_paths = [
-        EXAMPLES_DIR / "lumi_instruction_dataset_v1.md",
-        PROMPTS_DIR / "system" / "lumi_instruction_dataset_v1.md",
-    ]
-
-    dataset_path = next((path for path in candidate_paths if path.exists()), None)
-    if dataset_path:
-        with open(dataset_path, "r", encoding="utf-8") as dataset_file:
-            content = dataset_file.read().strip()
-            header = "## DATASET DE INSTRUCCIONES LUMI (v1)\nUsar como guía semántica general para tono, estructura y progresión de respuesta.\n\n"
-            return header + content
-    return ""
-
-def load_system_prompt(section_files=None):
-    """
-        Carga el prompt base y concatena secciones adicionales según sea necesario.
-        `section_files` debe ser una lista de nombres de archivo (por ejemplo, ["style.md"]).
-    """
-    candidate_paths = [
-        PROMPTS_DIR / "system_prompt_base.md",
-        PROMPTS_DIR / "system" / "system_prompt_base.md",
-    ]
-
-    base_path = next((path for path in candidate_paths if path.exists()), None)
-    if not base_path:
-        raise RuntimeError(
-            "No se encontró el archivo base del prompt. "
-            f"Rutas probadas: {', '.join(str(p) for p in candidate_paths)}"
-        )
-
-    with open(base_path, "r", encoding="utf-8") as f:
-        parts = [f.read().strip()]
-
-    system_dir = base_path.parent
-    additional_system_files = [
-        "system_operational_rules.md",
-        "system_style_guide.md",
-    ]
-
-    for filename in additional_system_files:
-        system_path = system_dir / filename
-        if system_path.exists():
-            with open(system_path, "r", encoding="utf-8") as system_file:
-                parts.append(system_file.read().strip())
-        else:
-            print(f"⚠️ Archivo de sistema no encontrado: {system_path}")
-
-    if section_files:
-        seen = set()
-        for filename in section_files:
-            if filename in seen:
-                continue
-            seen.add(filename)
-            section_path = SECTIONS_DIR / filename
-            if section_path.exists():
-                with open(section_path, "r", encoding="utf-8") as section_file:
-                    parts.append(section_file.read().strip())
-            else:
-                print(f"⚠️ Sección de prompt no encontrada: {section_path}")
-
-    return "\n\n".join(parts)
-
 def detect_consultation_type_and_load_template(message):
     """
     Detecta el tipo de consulta y carga el template específico correspondiente.
@@ -261,8 +193,9 @@ async def get_user_profiles_and_babies(user_id, supabase_client, baby_id=None, b
         routines_by_baby = await RoutineService.get_all_user_routines(user_id)
     routines_context = RoutineService.format_routines_for_context(routines_by_baby)
 
+    # TODO: Agregar relacion con perfiles si es necesario
     profile_texts = [
-        f"- Perfil: {p['name']}, fecha de nacimiento {p['birthdate']}, alimentación: {p.get('feeding', 'N/A')}"
+        f"- {p['name']}, fecha de nacimiento {p['birthdate']}"
         for p in profiles.data
     ] if profiles.data else []
 
@@ -291,9 +224,6 @@ async def get_user_profiles_and_babies(user_id, supabase_client, baby_id=None, b
                 f"- Bebé: {b['name']}, fecha de nacimiento {b['birthdate']}, "
                 f"edad: {edad_anios} años ({edad_meses} meses aprox.), "
                 f"etapa de desarrollo: {etapa_desarrollo}, "
-                f"alimentación: {b.get('feeding', 'N/A')}, "
-                f"peso: {b.get('weight', 'N/A')} kg, "
-                f"altura: {b.get('height', 'N/A')} cm"
             )
 
     context = ""
@@ -364,7 +294,6 @@ async def get_conversation_history(user_id, supabase_client, limit_per_role=4, b
     ]
 
     return formatted_history
-
 
 @router.post("/api/chat/confirm-profile-keywords")
 async def confirm_profile_keywords(
@@ -633,6 +562,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     # Construcción del body con prompt unificado
     messages = [{"role": "system", "content": formatted_system_prompt}]
+    # print(formatted_system_prompt)
     
     # Agregar historial con contexto claro
     if history:
@@ -648,6 +578,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     
     # Agregar mensaje del usuario tal cual (se probará la instrucción del prompt base)
     messages.append({"role": "user", "content": payload.message})
+    print(messages)
 
     body = {
         "model": OPENAI_MODEL,
