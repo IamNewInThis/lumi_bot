@@ -9,7 +9,6 @@ from ..utils.knowledge_cache import confirmation_cache
 from ..services.routine_service import RoutineService
 from ..utils.routine_cache import routine_confirmation_cache
 from ..utils.knowledge_detector import KnowledgeDetector
-# from ..utils.routine_detector import RoutineDetector
 
 # Constantes necesarias para build_system_prompt
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -441,40 +440,6 @@ async def handle_routine_confirmation(user_id: str, message: str):
         routine_confirmation_cache.clear_pending_confirmation(user_id)
         return {"answer": "👌 Entendido, no guardaré esa rutina.", "usage": {}}
 
-# async def detect_routine_in_user_message(user_id: str, message: str, babies_context: list):
-#     """
-#     Detecta rutinas en el mensaje del usuario y maneja la confirmación.
-#     Retorna None si no se detecta rutina, o la respuesta con confirmación si se detecta.
-#     """
-#     try:
-#         print(f"🕐 Analizando mensaje para rutinas: {message}")
-        
-#         # Analizar el mensaje para detectar información de rutinas
-#         detected_routine = await RoutineDetector.analyze_message(
-#             message, 
-#             babies_context
-#         )
-#         # print(f"🕐 Rutina detectada: {detected_routine}")
-        
-#         # Si se detecta una rutina, guardar en caché y preguntar confirmación
-#         if detected_routine and RoutineDetector.should_ask_confirmation(detected_routine):
-#             print("✅ Se debe preguntar confirmación de rutina")
-            
-#             # Guardar en caché para confirmación posterior
-#             routine_confirmation_cache.set_pending_confirmation(user_id, detected_routine, message)
-            
-#             confirmation_message = RoutineDetector.format_confirmation_message(detected_routine)
-            
-#             return confirmation_message
-#         else:
-#             # print("❌ No se debe preguntar confirmación de rutina")
-#             return None
-        
-#     except Exception as e:
-#         print(f"Error en detección de rutinas: {e}")
-#         import traceback
-#         traceback.print_exc()
-#         return None
 
 async def detect_routine_in_response(user_id: str, assistant_response: str, babies_context: list):
     """

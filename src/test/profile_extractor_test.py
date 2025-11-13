@@ -8,7 +8,7 @@ def run_test_case(text: str):
     try:
         result = extract_profile_info(text)
         print("✅ Resultado:")
-        print(json.dumps(result.dict(), ensure_ascii=False, indent=2))
+        print(json.dumps(result.model_dump(), ensure_ascii=False, indent=2))
     except Exception as e:
         print("❌ Error ejecutando el extractor:", e)
 

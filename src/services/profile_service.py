@@ -181,12 +181,15 @@ class BabyProfileService:
         # Mapear los campos a categorías
         FIELD_CATEGORY_MAP = {
             "sleep_location": "sleep and rest",
+            "sleep_room": "sleep and rest",
+            "feeding_method": "feeding",
+            "temperament": "behavior",
         }
 
         saved = 0
 
         # Iterar sobre cada atributo del modelo (pueden ser más en el futuro)
-        for field_name, field_value in profile.__dict__.items():
+        for field_name, field_value in profile.model_dump().items():
             if field_name == "confidence":
                 continue
 
