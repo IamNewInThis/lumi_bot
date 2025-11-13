@@ -9,6 +9,7 @@ from ..utils.knowledge_cache import confirmation_cache
 from ..services.routine_service import RoutineService
 from ..utils.routine_cache import routine_confirmation_cache
 from ..utils.knowledge_detector import KnowledgeDetector
+from ..extractors.template_extractor import build_template_block
 
 # Constantes necesarias para build_system_prompt
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -235,41 +236,24 @@ def load_specific_sections(section_files: list) -> str:
 
 def detect_consultation_type_and_load_template(message):
     """
-        Detecta el tipo de consulta y carga el template específico correspondiente.
+    Delegado principal que utiliza el template_extractor centralizado.
     """
-    message_lower = message.lower()
-    
-    # Mapeo de tipos de consulta y sus templates correspondientes
-    consultation_types = {
-        "pediatra": ["quiero ir al pediatra", "llevar al pediatra", "consulta médica", 
-                    "visita médica", "cita con el doctor", "ir al doctor"],
-        "feeding": ["no quiere comer", "problemas para comer", "rechazo comida", 
-                   "alimentación", "blw", "baby led weaning", "destete"],
-        "sleep": ["no duerme", "problemas de sueño", "dormir", "sueño", "insomnio bebé", 
-                 "despertar nocturno", "regresión del sueño"],
-        "development": ["desarrollo", "hitos", "cuándo camina", "cuándo habla", 
-                       "gatear", "sentarse", "primeras palabras"]
-    }
-    
-    # Detectar tipo de consulta
-    detected_type = None
-    for consultation_type, keywords in consultation_types.items():
-        if any(keyword in message_lower for keyword in keywords):
-            detected_type = consultation_type
-            break
-    
-    if not detected_type:
-        return ""
-    
-    # Buscar template correspondiente
-    template_path = TEMPLATES_DIR / f"{detected_type}.md"
-    
-    if template_path.exists():
-        with open(template_path, "r", encoding="utf-8") as template_file:
-            template_content = template_file.read().strip()
-            return f"\n\n## TEMPLATE ESPECÍFICO - {detected_type.upper()}\n{template_content}"
-    
-    return ""
+    block, selection = build_template_block(message)
+
+    if selection.template_key:
+        print(
+            f"🧩 [TEMPLATE] {selection.template_key} "
+            f"(source={selection.source}, confidence={selection.confidence:.2f})"
+        )
+        if selection.trigger_keyword:
+            print(
+                f"    Coincidencia: '{selection.trigger_keyword}' "
+                f"({selection.trigger_language})"
+            )
+        elif selection.reason:
+            print(f"    Motivo LLM: {selection.reason}")
+
+    return block
 
 def build_chat_prompt(base_system_prompt: str, dynamic_context: str, history: list, user_message: str):
     """
