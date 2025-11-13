@@ -688,59 +688,6 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     routine_detected_and_saved = False
     assistant_with_routine_confirmation = ""
 
-    # PRIMERA PRIORIDAD: Detectar rutinas en el mensaje del usuario
-    try:
-        # Usar el mismo contexto de bebés
-        babies = supabase.table("babies").select("*").eq("user_id", user_id).execute()
-        babies_context = babies.data or []
-        
-        routine_confirmation_message = await detect_routine_in_user_message(
-            user_id, 
-            payload.message, 
-            babies_context
-        )
-        
-        if routine_confirmation_message:
-            # Agregar la pregunta de confirmación a la respuesta
-            assistant_with_routine_confirmation = f"{assistant}\n\n🕐 {routine_confirmation_message}"
-            
-            return with_profile_meta({
-                "answer": assistant_with_routine_confirmation, 
-                "usage": usage
-            })
-        
-    except Exception as e:
-        print(f"Error en detección de rutinas: {e}")
-        import traceback
-        traceback.print_exc()
-        # Continuar normalmente si falla la detección
-        pass
-
-    # NUEVA FUNCIONALIDAD: Detección SIMPLE de rutinas en la RESPUESTA de Lumi
-    try:
-        # Usar el mismo contexto de bebés
-        babies = supabase.table("babies").select("*").eq("user_id", user_id).execute()
-        babies_context = babies.data or []
-        
-        routine_confirmation_message = await detect_routine_in_response(
-            user_id, 
-            assistant, 
-            babies_context
-        )
-        
-        if routine_confirmation_message:
-            assistant_with_routine_confirmation = f"{assistant}\n\n📋 {routine_confirmation_message}"
-            
-            return with_profile_meta({
-                "answer": assistant_with_routine_confirmation, 
-                "usage": usage
-            })
-            
-    except Exception as e:
-        print(f"Error en detección simple de rutinas: {e}")
-        # Continuar normalmente si falla
-        pass
-
     # SEGUNDA PRIORIDAD: Detectar conocimiento importante en el mensaje del usuario
     try:
         selected_baby_id = payload.baby_id if "baby_id" in payload.__fields_set__ else None

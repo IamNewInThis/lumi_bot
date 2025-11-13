@@ -20,7 +20,14 @@ PROFILE_TRIGGERS = {
     "sleep": [
         "duerme", "dormir", "despierta", "cuna", "moisés", "berço", "crib", "colecho",
         "siesta", "sueño", "bed", "sleep", "siesta", "noche"
-    ]
+    ],
+    "daily_care": [
+        "baño", "bano", "banho", "toallitas", "pañal", "pañales", "fralda", "diaper", "bath", "wipes"
+    ],
+    "emotions_bond_and_parenting": [
+        "abraza", "abrazo", "mima", "mimar", "caricia", "cariño", "love", "hug", "cuddle", "se calma",
+        "tranquiliza", "soothing", "comfort"
+    ], 
 }
 
 
@@ -49,7 +56,7 @@ DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 CLASSIFIER_PROMPT = ChatPromptTemplate.from_template("""
 Eres un asistente experto en desarrollo infantil.
 Tu tarea es decidir si este mensaje del usuario contiene información relevante
-para el perfil del bebé (temas: sueño, alimentación, temperamento, desarrollo, rutinas).
+para el perfil del bebé (temas: sueño, descanso, cuidado diario).
 
 Responde solo con "sí" o "no".
 
