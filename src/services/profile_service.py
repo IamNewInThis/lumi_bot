@@ -149,6 +149,23 @@ class BabyProfileService:
             traceback.print_exc()
             return None
 
+    @staticmethod
+    def _build_field_data_from_text(field_name: str, value: str) -> Optional[Dict[str, Any]]:
+        """Convierte un string simple en el formato esperado por save_profile_field."""
+        if not value:
+            return None
+
+        normalized_value = value.strip()
+        if not normalized_value:
+            return None
+
+        return {
+            "key": field_name,
+            "value_es": normalized_value,
+            "value_en": normalized_value,
+            "value_pt": normalized_value,
+        }
+
 
     # =========================================================
     # 🚀 Guardar todo el perfil del extractor
@@ -181,20 +198,26 @@ class BabyProfileService:
                 print(f"⚠️ [PROFILE] No hay categoría definida para '{field_name}'")
                 continue
 
-            # Si el extractor devuelve un dict con traducciones
             if isinstance(field_value, dict):
-                result = await BabyProfileService.save_profile_field(
-                    baby_id=baby_id,
-                    category_name=category,
-                    field_key=field_name,
-                    field_data=field_value,
-                    min_confidence=0.7,
-                )
-                if result:
-                    saved += 1
+                normalized_field = field_value
+            elif isinstance(field_value, str):
+                normalized_field = BabyProfileService._build_field_data_from_text(field_name, field_value)
             else:
-                # Si solo devuelve la key (ej: "crib")
-                print(f"⚠️ [PROFILE] Campo '{field_name}' no tiene datos detallados (solo key='{field_value}')")
+                normalized_field = None
+
+            if not normalized_field:
+                print(f"⚠️ [PROFILE] Campo '{field_name}' no tiene datos detallados utilizables.")
+                continue
+
+            result = await BabyProfileService.save_profile_field(
+                baby_id=baby_id,
+                category_name=category,
+                field_key=field_name,
+                field_data=normalized_field,
+                min_confidence=0.7,
+            )
+            if result:
+                saved += 1
 
         print(f"✅ [PROFILE] Campos guardados: {saved}")
         return saved

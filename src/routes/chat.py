@@ -13,7 +13,7 @@ from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
 from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, detect_profile_keywords_fuzzy
-from src.extractors.profile_extractor import extract_profile_info
+from src.extractors.profile_extractor import BabyProfile, extract_profile_info
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..services.knowledge_service import BabyKnowledgeService
@@ -27,7 +27,6 @@ from ..services.profile_service import BabyProfileService
 from ..services.chat_service import (
     handle_knowledge_confirmation,
     handle_routine_confirmation,
-    detect_routine_in_user_message,
     detect_routine_in_response,
     detect_knowledge_in_message,
     build_system_prompt,
@@ -37,6 +36,7 @@ from ..services.chat_service import (
     PARTNER_KEYWORDS,
     BEHAVIOR_KEYWORDS
 )
+from src.utils.profile_triggers import should_trigger_profile_extraction, should_trigger_profile_extraction_llm
 
 router = APIRouter()
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -329,12 +329,44 @@ async def confirm_profile_keywords(
         
         baby_name = baby_check.data.get('name', 'tu bebé')
         
-        # Guardar los keywords
-        saved_count = await BabyProfileService.save_detected_keywords(
-            baby_id=payload.baby_id,
-            detected_keywords=payload.keywords,
-            lang='es'  # Por ahora fijo, podría venir del request
+        keywords = payload.keywords or []
+        is_profile_extractor_payload = any(
+            kw.get("source") == "profile_extractor" for kw in keywords
         )
+
+        if is_profile_extractor_payload:
+            profile_payload = {}
+            for kw in keywords:
+                field_name = kw.get("profile_field") or kw.get("field_key")
+                value = kw.get("profile_value") or kw.get("keyword")
+                if field_name == "confidence":
+                    continue
+                if field_name and value:
+                    profile_payload[field_name] = value
+
+            if not profile_payload:
+                raise HTTPException(status_code=400, detail="No se encontraron campos del perfil para guardar.")
+
+            try:
+                profile = BabyProfile(**profile_payload)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Datos inválidos del perfil: {e}")
+
+            saved_count = await BabyProfileService.process_profile_extraction(
+                baby_id=payload.baby_id,
+                profile=profile
+            )
+        elif hasattr(BabyProfileService, "save_detected_keywords"):
+            saved_count = await BabyProfileService.save_detected_keywords(
+                baby_id=payload.baby_id,
+                detected_keywords=payload.keywords,
+                lang='es'  # Por ahora fijo, podría venir del request
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Guardar keywords no está disponible actualmente."
+            )
         
         if saved_count > 0:
             print(f"✅ [PROFILE CONFIRM] Guardados {saved_count} keywords para {baby_name} (ID: {payload.baby_id})")
@@ -383,17 +415,6 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     else:
         print(f"🌐 [LANG] Reutilizando idioma en cache para conversación: {lang}")
 
-    if lang_marker_info is not None:
-        marker_logs = [
-            f"{code}: {matches}"
-            for code, matches in lang_marker_info.items()
-            if matches
-        ]
-        if marker_logs:
-            print(f"🧭 [LANG] Markers usados en detección → {' | '.join(marker_logs)}")
-        else:
-            print(f"🧭 [LANG] Sin markers detectados; se usó langdetect/default")
-
     print(f"🌐 Idioma detectado para la conversación: {lang}")
     
     # Obtener información de los bebés del usuario
@@ -404,13 +425,20 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     # Determinar el bebé activo y calcular su edad en meses
     active_baby = None
     baby_age_months = None
+    target_baby_id = None
+    target_baby_name = "tu bebé"
     
     if payload.baby_id:
         # Buscar el bebé específico del payload
         active_baby = next((b for b in babies_context if b['id'] == payload.baby_id), None)
+        target_baby_id = payload.baby_id
+        if active_baby:
+            target_baby_name = active_baby.get('name', target_baby_name)
     elif babies_context:
         # Usar el primer bebé si no se especificó
         active_baby = babies_context[0]
+        target_baby_id = active_baby['id']
+        target_baby_name = active_baby.get('name', target_baby_name)
     
     if active_baby and active_baby.get('birthdate'):
         from ..utils.date_utils import calcular_meses
@@ -418,61 +446,101 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         print(f"👶 [AGE] Bebé activo: {active_baby.get('name', 'Sin nombre')} - Edad: {baby_age_months} meses")
     
     # 🎯 Detectar keywords del perfil del bebé (con fuzzy matching y filtro de edad)
-    detected_profile_keywords = detect_profile_keywords_fuzzy(
-        payload.message, 
-        lang, 
-        threshold=95,  # Umbral alto (95%) para evitar falsos positivos
-        age_months=baby_age_months,
-        verbose=True
-    )
-    if detected_profile_keywords:
-        print(f"🔍 [PROFILE KEYWORDS FUZZY] Se detectaron {len(detected_profile_keywords)} keyword(s) del perfil:")
-        for kw in detected_profile_keywords:
-            print(f"   - {kw['category']}.{kw.get('field_key', kw['field'])}: '{kw['keyword']}' (similitud: {kw.get('similarity', 'N/A')}%)")
+    # detected_profile_keywords = detect_profile_keywords_fuzzy(
+    #     payload.message, 
+    #     lang, 
+    #     threshold=95,  # Umbral alto (95%) para evitar falsos positivos
+    #     age_months=baby_age_months,
+    #     verbose=True
+    # )
+    # if detected_profile_keywords:
+    #     print(f"🔍 [PROFILE KEYWORDS FUZZY] Se detectaron {len(detected_profile_keywords)} keyword(s) del perfil:")
+    #     for kw in detected_profile_keywords:
+    #         print(f"   - {kw['category']}.{kw.get('field_key', kw['field'])}: '{kw['keyword']}' (similitud: {kw.get('similarity', 'N/A')}%)")
     
     # � Preparar keywords del perfil para confirmación (NO guardar automáticamente)
     profile_keywords_pending = None
-    
-    if detected_profile_keywords:
-        # Determinar el baby_id correcto
-        target_baby_id = None
-        target_baby_name = "tu bebé"
-        
-        # 1. Prioridad: baby_id del payload (si el usuario seleccionó un bebé específico)
-        if payload.baby_id:
-            target_baby_id = payload.baby_id
-            # print(f"🎯 [PROFILE] baby_id identificado del payload: {target_baby_id}")
-        # 2. Si no hay baby_id en payload pero hay bebés, usar el primero
-        elif babies_context:
-            target_baby_id = babies_context[0]['id']
-            target_baby_name = babies_context[0].get('name', 'tu bebé')
-            # print(f"⚠️ [PROFILE] Usando el primer bebé: {target_baby_id}")
-        
-        if target_baby_id:
-            # Preparar datos para enviar al frontend (NO guardar aún)
-            profile_keywords_pending = {
-                "baby_id": target_baby_id,
-                "baby_name": target_baby_name,
-                "keywords": detected_profile_keywords,
-                "count": len(detected_profile_keywords)
-            }
-            # print(f"📋 [PROFILE] Preparados {len(detected_profile_keywords)} keywords para confirmación del usuario")
-        else:
-            print(f"⚠️ [PROFILE] No se pudo determinar baby_id para keywords")
-    
+    profile_extraction_result = None
+
+    def with_profile_meta(response: dict) -> dict:
+        """Adjunta información del perfil detectado a la respuesta."""
+        enriched = dict(response)
+        enriched.setdefault("profile_keywords", profile_keywords_pending)
+        enriched.setdefault("profile_extraction", profile_extraction_result)
+        return enriched
+
     # Verificar si es una respuesta de confirmación de preferencias (KNOWLEDGE)
     knowledge_confirmation_result = await handle_knowledge_confirmation(user_id, payload.message)
     if knowledge_confirmation_result:
-        return knowledge_confirmation_result
+        return with_profile_meta(knowledge_confirmation_result)
 
     # Verificar si es una respuesta de confirmación de RUTINA
     routine_confirmation_result = await handle_routine_confirmation(user_id, payload.message)
     if routine_confirmation_result:
-        return routine_confirmation_result
+        return with_profile_meta(routine_confirmation_result)
 
     message_text = payload.message.strip()
     simple_greeting = is_simple_greeting(message_text)
     message_lower = payload.message.lower()
+    profile_trigger_method = None
+
+    if not simple_greeting:
+        if should_trigger_profile_extraction(payload.message):
+            profile_trigger_method = "heuristic"
+        elif should_trigger_profile_extraction_llm(payload.message):
+            profile_trigger_method = "llm"
+
+    if profile_trigger_method:
+        try:
+            extracted_profile = extract_profile_info(payload.message)
+            profile_data = extracted_profile.model_dump()
+            filtered_profile_fields = {
+                field: value
+                for field, value in profile_data.items()
+                if field != "confidence" and value
+            }
+
+            if filtered_profile_fields:
+                profile_extraction_result = {
+                    "baby_id": target_baby_id,
+                    "baby_name": target_baby_name,
+                    "data": filtered_profile_fields,
+                    "triggered_by": profile_trigger_method,
+                }
+                print(f"🧠 [PROFILE_EXTRACTOR] Datos detectados mediante {profile_trigger_method}.")
+                for field, value in filtered_profile_fields.items():
+                    print(f"   • Campo '{field}' = {value}")
+                if not target_baby_id:
+                    print("⚠️ [PROFILE_EXTRACTOR] No se encontró baby_id para asociar la extracción.")
+                else:
+                    keyword_entries = []
+                    for field, value in filtered_profile_fields.items():
+                        keyword_entries.append({
+                            "category": "profile_extractor",
+                            "subcategory": field,
+                            "field": field,
+                            "field_key": field,
+                            "keyword": value,
+                            "source": "profile_extractor",
+                            "profile_field": field,
+                            "profile_value": value,
+                        })
+
+                    if keyword_entries:
+                        profile_keywords_pending = {
+                            "baby_id": target_baby_id,
+                            "baby_name": target_baby_name,
+                            "keywords": keyword_entries,
+                            "count": len(keyword_entries),
+                            "source": "profile_extractor",
+                        }
+                        print(f"📝 [PROFILE_EXTRACTOR] Preparadas {len(keyword_entries)} entradas para confirmación.")
+                    else:
+                        print("ℹ️ [PROFILE_EXTRACTOR] Sin entradas válidas para confirmar.")
+            else:
+                print("ℹ️ [PROFILE_EXTRACTOR] Se activó el extractor pero no se encontraron campos.")
+        except Exception as e:
+            print(f"❌ [PROFILE_EXTRACTOR] Error ejecutando extractor: {e}")
 
     # Contexto RAG, perfiles/bebés e historial de conversación
     rag_context = ""
@@ -492,7 +560,6 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             rag_context = get_rag_context_simple(payload.message, search_id="reference_query")
             consulted_sources = []  # No guardar fuentes para consultas de referencias
         else:
-            print(f"✅ [CACHE] Consulta normal - SÍ se guardará en cache")
             # Para consultas normales, usar búsqueda completa y guardar en cache
             rag_context, consulted_sources = get_rag_context(payload.message, search_id="user_query")
             
@@ -547,51 +614,33 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         filter_by_baby=filter_by_baby
     )
 
-    # Construir el prompt maestro (el sistema base ya instruye al modelo sobre el idioma)
+    # Construir el prompt optimizado (separa base de contexto dinámico)
     system_prompt_data = await build_system_prompt(
-        payload, user_context, routines_context, combined_rag_context, user["id"]
+        payload, user_context, routines_context, combined_rag_context, user["id"], target_baby_id
     )
-    formatted_system_prompt = system_prompt_data["system_prompt"]
-
-    # Detectar tipo de consulta y agregar template específico
-    specific_template = detect_consultation_type_and_load_template(payload.message)
-    if specific_template:
-        formatted_system_prompt += specific_template
-        print(f"🎯 Template específico detectado y agregado")
+    base_system_prompt = system_prompt_data["base_system_prompt"]
+    dynamic_context = system_prompt_data["dynamic_context"]
 
     # Si es una consulta de referencias, manejarla directamente sin pasar por LLM
     if not simple_greeting and is_reference_query:
         print(f"🔍 [REFERENCIAS] Procesando consulta de referencias")
         reference_response = await ReferenceDetector.handle_reference_query(payload.message, user_id)
-        return {"answer": reference_response, "usage": {}}
+        return with_profile_meta({"answer": reference_response, "usage": {}})
 
-    # Construcción del body con prompt unificado
+    # Construcción del body con prompt optimizado
     messages = build_chat_prompt(
-        formatted_system_prompt=formatted_system_prompt,
+        base_system_prompt=base_system_prompt,
+        dynamic_context=dynamic_context,
         history=history,
         user_message=payload.message
     )
+    
     # print(formatted_system_prompt)
-    
-    # Agregar historial con contexto claro
-    if history:
-        messages.append({
-            "role": "system", 
-            "content": "=== CONTEXTO DE MENSAJES ANTERIORES DEL USUARIO (solo para entender el contexto, NO para copiar formato de respuestas) ==="
-        })
-        messages.extend(history)
-        messages.append({
-            "role": "system", 
-            "content": "=== FIN DEL CONTEXTO - Responde de forma original y específica ==="
-        })
-    
-    # Agregar mensaje del usuario tal cual (se probará la instrucción del prompt base)
-    messages.append({"role": "user", "content": payload.message})
     # print(messages)
 
     body = {
         "model": OPENAI_MODEL,
-        "messages": [m.to_dict() for m in messages],
+        "messages": messages,
         "max_tokens": 1800,
         "temperature": 0.4,
         "top_p": 0.9,
@@ -624,11 +673,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         except httpx.ReadTimeout as e:
             print(f"⏰ Timeout en intento {attempt + 1}/{max_retries}")
             if attempt == max_retries - 1:  # Último intento
-                return {
+                return with_profile_meta({
                     "answer": "Lo siento, el sistema está experimentando demoras. Por favor, intenta reformular tu pregunta de manera más breve o inténtalo de nuevo en unos momentos.",
-                    "usage": {},
-                    "profile_keywords": profile_keywords_pending 
-                }
+                    "usage": {}
+                })
             # Esperar antes del siguiente intento
             import asyncio
             await asyncio.sleep(2 ** attempt)  # 1s, 2s, 4s
@@ -636,11 +684,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         except Exception as e:
             print(f"❌ Error inesperado en intento {attempt + 1}: {e}")
             if attempt == max_retries - 1:
-                return {
+                return with_profile_meta({
                     "answer": "Hubo un problema técnico. Por favor, intenta de nuevo en unos momentos.",
-                    "usage": {},
-                    "profile_keywords": profile_keywords_pending 
-                }
+                    "usage": {}
+                })
             continue
 
     data = resp.json()
@@ -670,11 +717,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             # Agregar la pregunta de confirmación a la respuesta
             assistant_with_routine_confirmation = f"{assistant}\n\n🕐 {routine_confirmation_message}"
             
-            return {
+            return with_profile_meta({
                 "answer": assistant_with_routine_confirmation, 
-                "usage": usage,
-                "profile_keywords": profile_keywords_pending 
-            }
+                "usage": usage
+            })
         
     except Exception as e:
         print(f"Error en detección de rutinas: {e}")
@@ -698,11 +744,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         if routine_confirmation_message:
             assistant_with_routine_confirmation = f"{assistant}\n\n📋 {routine_confirmation_message}"
             
-            return {
+            return with_profile_meta({
                 "answer": assistant_with_routine_confirmation, 
-                "usage": usage,
-                "profile_keywords": profile_keywords_pending 
-            }
+                "usage": usage
+            })
             
     except Exception as e:
         print(f"Error en detección simple de rutinas: {e}")
@@ -724,11 +769,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             # Agregar la pregunta de confirmación a la respuesta
             assistant_with_confirmation = f"{assistant}\n\n🧠 {knowledge_confirmation_message}"
             
-            return {
+            return with_profile_meta({
                 "answer": assistant_with_confirmation, 
-                "usage": usage,
-                "profile_keywords": profile_keywords_pending 
-            }
+                "usage": usage
+            })
         
     except Exception as e:
         print(f"Error en detección de conocimiento: {e}")
@@ -737,8 +781,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         # Continuar normalmente si falla la detección
         pass
 
-    return {
+    return with_profile_meta({
         "answer": assistant, 
-        "usage": usage,
-        "profile_keywords": profile_keywords_pending 
-    }
+        "usage": usage
+    })

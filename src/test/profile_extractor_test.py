@@ -18,7 +18,7 @@ def main():
     test_cases = [
         # Español
         "Mi hija duerme en su cuna y toma pecho por la noche. Es muy tranquila y sonriente.",
-        "Últimamente duerme con nosotros, le cuesta dormir sola.",
+        "Últimamente Pepiño duerme con nosotros, le cuesta dormir solo.",
 
         # Inglés
         "My baby sleeps in her crib and drinks formula during the day. She is very active and curious.",

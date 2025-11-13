@@ -56,7 +56,7 @@ def get_rag_context(query: str, k: int = 20, top_sources: int = 3, search_id: st
     if matched_sources:
         matched_sources = list(dict.fromkeys(matched_sources))
         print(f"🎯 [{search_id.upper()}] Keywords detectadas → {matched_keywords}")
-        print(f"📚 Fuentes asociadas → {matched_sources}")
+        # print(f"📚 Fuentes asociadas → {matched_sources}")
 
         combined = []
         for src in matched_sources:
