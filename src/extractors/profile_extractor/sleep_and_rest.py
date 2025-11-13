@@ -4,8 +4,32 @@ from .base import BaseProfileModel, get_llm, normalize_text, keyword_match
 
 
 class SleepAndRestProfile(BaseProfileModel):
-    sleep_location: str | None = Field(None, description="Lugar donde el bebé duerme habitualmente (ej: cuna, cama compartida, moisés)")
-    sleep_room: str | None = Field(None, description="Habitación donde duerme el bebé (ej: propia habitación, habitación de los padres, habitación compartida)")
+    sleep_location: str | None = Field(
+        None,
+        description="Lugar donde el bebé duerme habitualmente (ej: cuna, cama compartida, moisés)",
+    )
+    sleep_location_label_es: str | None = Field(
+        None, description="Etiqueta del lugar de sueño en español."
+    )
+    sleep_location_label_en: str | None = Field(
+        None, description="Etiqueta del lugar de sueño en inglés."
+    )
+    sleep_location_label_pt: str | None = Field(
+        None, description="Etiqueta del lugar de sueño en portugués."
+    )
+    sleep_room: str | None = Field(
+        None,
+        description="Habitación donde duerme el bebé (ej: propia habitación, habitación de los padres, habitación compartida)",
+    )
+    sleep_room_label_es: str | None = Field(
+        None, description="Etiqueta de la habitación en español."
+    )
+    sleep_room_label_en: str | None = Field(
+        None, description="Etiqueta de la habitación en inglés."
+    )
+    sleep_room_label_pt: str | None = Field(
+        None, description="Etiqueta de la habitación en portugués."
+    )
 
 
 SLEEP_PROMPT = """
@@ -21,7 +45,9 @@ Rules:
 
 Schema fields:
 - sleep_location: crib, bassinet, shared_bed, floor_mattress, low_bed, regular_bed, etc.
+- sleep_location_label_es/en/pt: traducciones literales del lugar de sueño en cada idioma.
 - sleep_room: own_room, parents_room, shared_room, family_bedroom_co_sleeping, etc.
+- sleep_room_label_es/en/pt: traducciones literales de la habitación en cada idioma.
 Also include a 'confidence' score from 0 to 1.
 
 Examples:
@@ -137,6 +163,26 @@ SLEEP_ROOM_RULES = [
     },
 ]
 
+SLEEP_LOCATION_TRANSLATIONS = {
+    "crib": {"es": "cuna", "en": "crib", "pt": "berço"},
+    "bassinet": {"es": "moisés", "en": "bassinet", "pt": "moisés"},
+    "shared_bed": {"es": "cama compartida", "en": "shared bed", "pt": "cama compartilhada"},
+    "floor_mattress": {"es": "colchón en el suelo", "en": "floor mattress", "pt": "colchão no chão"},
+    "low_bed": {"es": "cama baja Montessori", "en": "low bed", "pt": "cama baixa"},
+    "regular_bed": {"es": "cama estándar", "en": "regular bed", "pt": "cama comum"},
+}
+
+SLEEP_ROOM_TRANSLATIONS = {
+    "own_room": {"es": "habitación propia", "en": "own room", "pt": "quarto próprio"},
+    "parents_room": {"es": "habitación de los padres", "en": "parents' room", "pt": "quarto dos pais"},
+    "shared_room": {"es": "habitación compartida", "en": "shared room", "pt": "quarto compartilhado"},
+    "family_bedroom_co_sleeping": {
+        "es": "habitación familiar (colecho)",
+        "en": "family bedroom (co-sleeping)",
+        "pt": "quarto familiar (co-sleeping)",
+    },
+}
+
 
 def _matches_rule(text: str, rule: dict) -> bool:
     def contains_any(options: list[str]) -> bool:
@@ -170,23 +216,32 @@ def _infer_sleep_context(text: str) -> dict:
     return result
 
 
-def fallback_sleep_profile(message: str) -> SleepAndRestProfile:
-    normalized = normalize_text(message)
-    data = _infer_sleep_context(normalized)
-
-    sleep_location = data.get("sleep_location", {}).get("key")
-    sleep_room = data.get("sleep_room", {}).get("key")
-    confidence = max(
-        data.get("sleep_location", {}).get("confidence", 0),
-        data.get("sleep_room", {}).get("confidence", 0),
-        0.6,
-    )
-
-    return SleepAndRestProfile(
-        sleep_location=sleep_location,
-        sleep_room=sleep_room,
-        confidence=confidence,
-    )
+# def fallback_sleep_profile(message: str) -> SleepAndRestProfile:
+#     normalized = normalize_text(message)
+#     data = _infer_sleep_context(normalized)
+#
+#     sleep_location = data.get("sleep_location", {}).get("key")
+#     sleep_room = data.get("sleep_room", {}).get("key")
+#     confidence = max(
+#         data.get("sleep_location", {}).get("confidence", 0),
+#         data.get("sleep_room", {}).get("confidence", 0),
+#         0.6,
+#     )
+#
+#     location_labels = SLEEP_LOCATION_TRANSLATIONS.get(sleep_location or "", {})
+#     room_labels = SLEEP_ROOM_TRANSLATIONS.get(sleep_room or "", {})
+#
+#     return SleepAndRestProfile(
+#         sleep_location=sleep_location,
+#         sleep_location_label_es=location_labels.get("es"),
+#         sleep_location_label_en=location_labels.get("en"),
+#         sleep_location_label_pt=location_labels.get("pt"),
+#         sleep_room=sleep_room,
+#         sleep_room_label_es=room_labels.get("es"),
+#         sleep_room_label_en=room_labels.get("en"),
+#         sleep_room_label_pt=room_labels.get("pt"),
+#         confidence=confidence,
+#     )
 
 
 def extract_sleep_and_rest(message: str) -> SleepAndRestProfile:
@@ -197,9 +252,12 @@ def extract_sleep_and_rest(message: str) -> SleepAndRestProfile:
             profile = chain.invoke({"message": message})
         except Exception as e:
             print(f"⚠️ [SLEEP_EXTRACTOR] Error con LLM ({e}). Usando heurística local.")
-    if profile is None:
-        profile = fallback_sleep_profile(message)
-    return _sanitize_sleep_profile(message, profile)
+    # if profile is None:
+    #     profile = fallback_sleep_profile(message)
+    profile = _apply_translation_defaults(profile)
+    profile = _sanitize_sleep_profile(message, profile)
+    _log_sleep_profile_debug(profile)
+    return profile
 
 
 LOCATION_HINTS = (
@@ -261,6 +319,55 @@ def _sanitize_sleep_profile(message: str, profile: SleepAndRestProfile) -> Sleep
     normalized = normalize_text(message)
     if profile.sleep_location and not _has_any_keyword(normalized, LOCATION_HINTS):
         profile.sleep_location = None
+        profile.sleep_location_label_es = None
+        profile.sleep_location_label_en = None
+        profile.sleep_location_label_pt = None
     if profile.sleep_room and not _has_any_keyword(normalized, ROOM_HINTS):
         profile.sleep_room = None
+        profile.sleep_room_label_es = None
+        profile.sleep_room_label_en = None
+        profile.sleep_room_label_pt = None
     return profile
+
+
+def _apply_translation_defaults(profile: SleepAndRestProfile) -> SleepAndRestProfile:
+    if profile.sleep_location:
+        labels = SLEEP_LOCATION_TRANSLATIONS.get(profile.sleep_location, {})
+        profile.sleep_location_label_es = profile.sleep_location_label_es or labels.get("es")
+        profile.sleep_location_label_en = profile.sleep_location_label_en or labels.get("en")
+        profile.sleep_location_label_pt = profile.sleep_location_label_pt or labels.get("pt")
+    else:
+        profile.sleep_location_label_es = None
+        profile.sleep_location_label_en = None
+        profile.sleep_location_label_pt = None
+
+    if profile.sleep_room:
+        labels = SLEEP_ROOM_TRANSLATIONS.get(profile.sleep_room, {})
+        profile.sleep_room_label_es = profile.sleep_room_label_es or labels.get("es")
+        profile.sleep_room_label_en = profile.sleep_room_label_en or labels.get("en")
+        profile.sleep_room_label_pt = profile.sleep_room_label_pt or labels.get("pt")
+    else:
+        profile.sleep_room_label_es = None
+        profile.sleep_room_label_en = None
+        profile.sleep_room_label_pt = None
+
+    return profile
+
+
+def _log_sleep_profile_debug(profile: SleepAndRestProfile) -> None:
+    if profile.sleep_location_label_es or profile.sleep_room_label_es:
+        print("🈯 [SLEEP_EXTRACTOR] Traducciones detectadas:")
+    if profile.sleep_location_label_es:
+        print(
+            f"   • sleep_location labels: "
+            f"ES='{profile.sleep_location_label_es}', "
+            f"EN='{profile.sleep_location_label_en}', "
+            f"PT='{profile.sleep_location_label_pt}'"
+        )
+    if profile.sleep_room_label_es:
+        print(
+            f"   • sleep_room labels: "
+            f"ES='{profile.sleep_room_label_es}', "
+            f"EN='{profile.sleep_room_label_en}', "
+            f"PT='{profile.sleep_room_label_pt}'"
+        )
