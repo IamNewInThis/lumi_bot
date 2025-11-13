@@ -57,6 +57,7 @@ KEYWORDS_SLEEP_PT = {
             },
             "sleep_location": {
                 "crib": [
+                    "berco",
                     "berço",
                     "em seu berço",
                     "dorme em berço",

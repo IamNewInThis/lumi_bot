@@ -1,4 +1,6 @@
 # src/services/chat_service.py
+import json
+import traceback
 from datetime import datetime
 from pathlib import Path
 from ..rag.retriever import supabase
@@ -7,7 +9,6 @@ from ..utils.knowledge_cache import confirmation_cache
 from ..services.routine_service import RoutineService
 from ..utils.routine_cache import routine_confirmation_cache
 from ..utils.knowledge_detector import KnowledgeDetector
-from ..utils.routine_detector import RoutineDetector
 
 # Constantes necesarias para build_system_prompt
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -15,7 +16,7 @@ today = datetime.now().strftime("%d/%m/%Y %H:%M")
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 SECTIONS_DIR = PROMPTS_DIR / "sections"
 TEMPLATES_DIR = PROMPTS_DIR / "templates"
-EXAMPLES_DIR = PROMPTS_DIR / "examples"
+EXAMPLES_DIR = Path(__file__).parent.parent / "examples" 
 
 # Keywords copiadas de chat.py
 ROUTINE_KEYWORDS = {
@@ -51,27 +52,139 @@ PARTNER_KEYWORDS = {
     "apoyo", "involucrar", "participar", "roles", "responsabilidades"
 }
 
-# Funciones de utilidad copiadas de chat.py
-def load_instruction_dataset():
+def load_example_dataset():
     """
-    Carga el dataset de ejemplos, estos ejemplos fueron tomados desde el GPT de Sol
-    Para darle un mejor contexto al modelo de como debe responder.
-    ubicado en prompts/examples y lo incluye como guía semántica base.
+    Carga el dataset de ejemplos JSONL desde src/examples.
+    Convierte las conversaciones JSON a formato texto para el system prompt.
+    """
+    dataset_path = EXAMPLES_DIR / "lumi_instruction_dataset_v1.jsonl"
+    
+    if not dataset_path.exists():
+        print(f"⚠️ Dataset no encontrado: {dataset_path}")
+        return ""
+    
+    header = "## DATASET DE EJEMPLOS LUMI (v1)\nUsar como guía de referencia para la generación de respuestas.\n\n"
+    
+    try:
+        examples_text = []
+        with open(dataset_path, "r", encoding="utf-8") as jsonl_file:
+            for line_num, line in enumerate(jsonl_file, 1):
+                if line.strip():
+                    data = json.loads(line)
+                    if "messages" in data:
+                        example_text = f"### Ejemplo {line_num}:\n"
+                        for msg in data["messages"]:
+                            role = msg.get("role", "unknown").upper()
+                            content = msg.get("content", "").strip()
+                            if content:
+                                example_text += f"**{role}**: {content}\n\n"
+                        examples_text.append(example_text)
+        
+        if examples_text:
+            content = "\n".join(examples_text)
+            print(f"📚 Cargados {len(examples_text)} ejemplos desde {dataset_path.name}")
+            return header + content
+        else:
+            print(f"⚠️ No se pudieron cargar ejemplos desde {dataset_path.name}")
+            return ""
+                    
+    except Exception as e:
+        print(f"❌ Error cargando dataset JSONL: {e}")
+        return ""
+
+def load_base_system_prompt():
+    """
+    Carga solo el prompt base esencial, SIN ejemplos ni contexto dinámico.
+    Esto mantiene el system prompt pequeño y estable.
     """
     candidate_paths = [
-        EXAMPLES_DIR / "lumi_instruction_dataset_v1.md",
-        PROMPTS_DIR / "system" / "lumi_instruction_dataset_v1.md",
+        PROMPTS_DIR / "system_prompt_base.md",
+        PROMPTS_DIR / "system" / "system_prompt_base.md",
     ]
 
-    dataset_path = next((path for path in candidate_paths if path.exists()), None)
-    if dataset_path:
-        with open(dataset_path, "r", encoding="utf-8") as dataset_file:
-            content = dataset_file.read().strip()
-            header = "## DATASET DE INSTRUCCIONES LUMI (v1)\nUsar como guía semántica general para tono, estructura y progresión de respuesta.\n\n"
-            return header + content
-    return ""
+    base_path = next((path for path in candidate_paths if path.exists()), None)
+    if not base_path:
+        raise RuntimeError(
+            "No se encontró el archivo base del prompt. "
+            f"Rutas probadas: {', '.join(str(p) for p in candidate_paths)}"
+        )
 
-def load_system_prompt(section_files=None):
+    with open(base_path, "r", encoding="utf-8") as f:
+        base_content = f.read().strip()
+
+    # Solo agregar reglas operacionales básicas, NO ejemplos ni contexto dinámico
+    system_dir = base_path.parent
+    operational_rules_path = system_dir / "system_operational_rules.md"
+    
+    if operational_rules_path.exists():
+        with open(operational_rules_path, "r", encoding="utf-8") as f:
+            base_content += "\n\n" + f.read().strip()
+
+    return base_content
+
+def build_dynamic_context(user_context: str, profile_text: str, routines_context: str, 
+                         combined_rag_context: str, specific_sections: list = None):
+    """
+    Construye el contexto dinámico que se enviará como parte del mensaje del usuario.
+    Esto no cuenta contra el límite del system prompt.
+    """
+    context_parts = []
+    
+    # Información del usuario y bebés
+    if user_context:
+        context_parts.append(f"📋 INFORMACIÓN DEL USUARIO:\n{user_context}")
+    
+    # Perfil de los bebés (resumido)
+    if profile_text:
+        # Truncar si es muy largo
+        if len(profile_text) > 2000:
+            profile_text = profile_text[:2000] + "\n... [Perfil truncado]"
+        context_parts.append(f"👶 PERFIL DE LOS BEBÉS:\n{profile_text}")
+    
+    # Rutinas (resumidas)
+    if routines_context:
+        if len(routines_context) > 1500:
+            routines_context = routines_context[:1500] + "\n... [Rutinas truncadas]"
+        context_parts.append(f"🕐 RUTINAS ESTABLECIDAS:\n{routines_context}")
+    
+    # Contexto RAG (limitado)
+    if combined_rag_context:
+        max_rag_length = 3000  # Reducido de 10000
+        if len(combined_rag_context) > max_rag_length:
+            combined_rag_context = combined_rag_context[:max_rag_length] + "\n... [Contexto RAG truncado]"
+        context_parts.append(f"📚 CONOCIMIENTO RELEVANTE:\n{combined_rag_context}")
+    
+    # Secciones específicas (comportamiento, rutinas, etc.)
+    if specific_sections:
+        sections_text = load_specific_sections(specific_sections)
+        if sections_text:
+            context_parts.append(f"🎯 GUÍAS ESPECÍFICAS:\n{sections_text}")
+    
+    return "\n\n".join(context_parts) if context_parts else ""
+
+def load_specific_sections(section_files: list) -> str:
+    """Carga secciones específicas de forma compacta"""
+    if not section_files:
+        return ""
+    
+    parts = []
+    seen = set()
+    
+    for filename in section_files:
+        if filename in seen:
+            continue
+        seen.add(filename)
+        
+        section_path = SECTIONS_DIR / filename
+        if section_path.exists():
+            with open(section_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                # Limitar tamaño de cada sección
+                if len(content) > 800:
+                    content = content[:800] + "\n... [Sección truncada]"
+                parts.append(f"### {filename.replace('.md', '').title()}\n{content}")
+    
+    return "\n\n".join(parts)
     """
         Carga el prompt base y concatena secciones adicionales según sea necesario.
         `section_files` debe ser una lista de nombres de archivo (por ejemplo, ["style.md"]).
@@ -158,6 +271,33 @@ def detect_consultation_type_and_load_template(message):
     
     return ""
 
+def build_chat_prompt(base_system_prompt: str, dynamic_context: str, history: list, user_message: str):
+    """
+    Construye un prompt estructurado para Lumi optimizado para reducir tokens del system prompt.
+    Separa el prompt base (estático) del contexto dinámico (perfiles, RAG, etc.)
+    """
+    
+    # System prompt solo con instrucciones básicas (más pequeño)
+    messages = [
+        {"role": "system", "content": base_system_prompt}
+    ]
+    
+    # Contexto dinámico como mensaje del usuario (no cuenta como system prompt)
+    if dynamic_context:
+        messages.append({
+            "role": "user", 
+            "content": f"CONTEXTO PARA ESTA CONSULTA:\n{dynamic_context}\n\n---\n\nMi consulta real es: {user_message}"
+        })
+    else:
+        messages.append({"role": "user", "content": user_message})
+    
+    # Agregar historial si existe (con límite)
+    if history:
+        # Limitar historial a los últimos N mensajes para reducir tokens
+        recent_history = history[-6:] if len(history) > 6 else history
+        messages.extend(recent_history)
+    
+    return messages
 
 async def handle_knowledge_confirmation(user_id: str, message: str):
     """
@@ -219,7 +359,6 @@ async def handle_knowledge_confirmation(user_id: str, message: str):
 
     confirmation_cache.clear_pending_confirmation(user_id)
     return {"answer": "👌 Entendido, no guardaré esa información.", "usage": {}}
-
 
 async def handle_routine_confirmation(user_id: str, message: str):
     """
@@ -302,42 +441,6 @@ async def handle_routine_confirmation(user_id: str, message: str):
         return {"answer": "👌 Entendido, no guardaré esa rutina.", "usage": {}}
 
 
-async def detect_routine_in_user_message(user_id: str, message: str, babies_context: list):
-    """
-    Detecta rutinas en el mensaje del usuario y maneja la confirmación.
-    Retorna None si no se detecta rutina, o la respuesta con confirmación si se detecta.
-    """
-    try:
-        print(f"🕐 Analizando mensaje para rutinas: {message}")
-        
-        # Analizar el mensaje para detectar información de rutinas
-        detected_routine = await RoutineDetector.analyze_message(
-            message, 
-            babies_context
-        )
-        print(f"🕐 Rutina detectada: {detected_routine}")
-        
-        # Si se detecta una rutina, guardar en caché y preguntar confirmación
-        if detected_routine and RoutineDetector.should_ask_confirmation(detected_routine):
-            print("✅ Se debe preguntar confirmación de rutina")
-            
-            # Guardar en caché para confirmación posterior
-            routine_confirmation_cache.set_pending_confirmation(user_id, detected_routine, message)
-            
-            confirmation_message = RoutineDetector.format_confirmation_message(detected_routine)
-            
-            return confirmation_message
-        else:
-            print("❌ No se debe preguntar confirmación de rutina")
-            return None
-        
-    except Exception as e:
-        print(f"Error en detección de rutinas: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-
-
 async def detect_routine_in_response(user_id: str, assistant_response: str, babies_context: list):
     """
     Detecta rutinas estructuradas en la respuesta de Lumi usando método simple.
@@ -403,7 +506,6 @@ async def detect_routine_in_response(user_id: str, assistant_response: str, babi
     except Exception as e:
         print(f"Error en detección simple de rutinas: {e}")
         return None
-
 
 async def detect_knowledge_in_message(user_id: str, message: str, babies_context: list, selected_baby_id: str = None):
     """
@@ -487,81 +589,222 @@ async def detect_knowledge_in_message(user_id: str, message: str, babies_context
         traceback.print_exc()
         return None
 
-
-async def build_system_prompt(payload, user_context, routines_context, combined_rag_context):
+async def get_baby_profile(user_id: str, baby_id: str = None):
     """
-    Construye el prompt del sistema completo con todas las secciones necesarias.
+    Obtiene información detallada de un bebé específico del usuario incluyendo su perfil
+    desde las tablas babies, baby_profile, baby_profile_value y profile_category.
+    
+    Args:
+        user_id: ID del usuario
+        baby_id: ID específico del bebé (opcional). Si no se proporciona, retorna el primer bebé.
+    
+    Retorna:
+        Diccionario con información del bebé específico y su perfil detallado por categorías.
+        Ejemplo de estructura retornada:
+        {
+            "id": "uuid",
+            "name": "Jacinta", 
+            "birthdate": "2025-05-08",
+            "gender": "female",
+            "profile": {
+                "sleep and rest": {
+                    "sleep_location": {"value_es": "cuna", "value_en": "crib"},
+                    "day_night_difference": {"value_es": "comienza a distinguir", "value_en": "starting to distinguish"}
+                },
+                "daily cares": {
+                    "dental_care_type": {"value_es": "pasta sin flúor", "value_en": "toothpaste without fluoride"}
+                }
+            }
+        }
+        
+        Retorna None si no se encuentra el bebé específico.
+    """
+    try:
+        # Usar función RPC optimizada para obtener bebés con perfil completo
+        response = supabase.rpc('get_babies_with_profile_data', {
+            'p_user_id': user_id
+        }).execute()
+        
+        if response.data is None:
+            print(f"👶 No se encontraron bebés para user_id: {user_id}")
+            return None
+        
+        babies_data = response.data
+        
+        # Si se especificó un baby_id, buscar ese bebé específico
+        if baby_id:
+            selected_baby = next((baby for baby in babies_data if baby.get('id') == baby_id), None)
+            if selected_baby:
+                print(f"👶 Obtenido perfil del bebé específico: {selected_baby.get('name', 'Sin nombre')} (ID: {baby_id})")
+                return selected_baby
+            else:
+                print(f"⚠️ No se encontró bebé con ID: {baby_id} para user_id: {user_id}")
+                # Fallback al primer bebé si el baby_id no se encuentra
+                if babies_data:
+                    first_baby = babies_data[0]
+                    print(f"🔄 Usando primer bebé disponible: {first_baby.get('name', 'Sin nombre')} (ID: {first_baby.get('id')})")
+                    return first_baby
+                return None
+        else:
+            # Si no se especificó baby_id, usar el primer bebé disponible
+            if babies_data:
+                first_baby = babies_data[0]
+                print(f"👶 Usando primer bebé disponible: {first_baby.get('name', 'Sin nombre')} (ID: {first_baby.get('id')})")
+                return first_baby
+            
+        print(f"👶 No se encontraron bebés para user_id: {user_id}")
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error al obtener el perfil del bebé: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def format_baby_profile_for_context(baby_data, lang: str = 'es') -> str:
+    """
+    Formatea la información de perfil de un bebé específico para incluir en el system prompt.
+    
+    Args:
+        baby_data: Puede ser un diccionario con información de un bebé individual, 
+                  o una lista de bebés (para mantener compatibilidad)
+        lang: Idioma para mostrar los valores ('es', 'en', 'pt')
+    
+    Returns:
+        String formateado con la información de perfil del bebé específico
+    """
+    # Manejar tanto un bebé individual como una lista de bebés
+    if baby_data is None:
+        return "No hay información de perfil disponible."
+    
+    if isinstance(baby_data, dict):
+        # Es un bebé individual
+        babies_data = [baby_data]
+    elif isinstance(baby_data, list):
+        # Es una lista de bebés (compatibilidad)
+        babies_data = baby_data
+    else:
+        return "Formato de datos de bebé no válido."
+    
+    if not babies_data:
+        return "No hay información de perfil disponible."
+    
+    formatted_profiles = []
+    
+    for baby in babies_data:
+        baby_name = baby.get('name', 'Bebé sin nombre')
+        baby_age = baby.get('birthdate', '')
+        profile_data = baby.get('profile', {})
+        
+        if not profile_data:
+            # Si no hay perfil, al menos mostrar información básica
+            formatted_profiles.append(f"👶 **{baby_name}** ({baby_age}) - Sin perfil detallado disponible")
+            continue
+        
+        baby_profile_lines = [f"👶 **{baby_name}** ({baby_age})"]
+        
+        for category, category_data in profile_data.items():
+            if category_data:  # Solo mostrar si hay datos
+                baby_profile_lines.append(f"  📂 {category.title()}:")
+                
+                for key, values in category_data.items():
+                    # Obtener valor en el idioma especificado, con fallback a español
+                    value_key = f'value_{lang}'
+                    display_value = values.get(value_key) or values.get('value_es') or 'N/A'
+                    
+                    # Formatear key para que sea más legible
+                    formatted_key = key.replace('_', ' ').title()
+                    baby_profile_lines.append(f"    • {formatted_key}: {display_value}")
+        
+        if len(baby_profile_lines) > 1:  # Solo agregar si tiene contenido además del nombre
+            formatted_profiles.append('\n'.join(baby_profile_lines))
+    
+    if formatted_profiles:
+        # Usar singular si es un solo bebé, plural si son múltiples
+        header = "## PERFIL DETALLADO DEL BEBÉ:" if len(babies_data) == 1 else "## PERFILES DETALLADOS DE LOS BEBÉS:"
+        return header + "\n\n" + '\n\n'.join(formatted_profiles)
+    else:
+        return "El bebé no tiene información de perfil detallada disponible."
+
+async def build_system_prompt(payload, user_context, routines_context, combined_rag_context, user_id=None, baby_id=None):
+    """
+    Construye el prompt del sistema OPTIMIZADO - separa contenido base de contexto dinámico.
+    Retorna tanto el system prompt base como el contexto dinámico por separado.
+    
+    Args:
+        payload: Objeto de request con el mensaje del usuario
+        user_context: Contexto general del usuario
+        routines_context: Contexto de rutinas
+        combined_rag_context: Contexto de knowledge/RAG
+        user_id: ID del usuario
+        baby_id: ID específico del bebé (opcional). Si no se proporciona, usa el primer bebé disponible.
     """
     message_lower = payload.message.lower()
     
-    # Determinar qué keywords están presentes
-    needs_behavior = any(keyword in message_lower for keyword in BEHAVIOR_KEYWORDS)
-    needs_routine = any(keyword in message_lower for keyword in ROUTINE_KEYWORDS)
-    needs_night_weaning = any(keyword in message_lower for keyword in NIGHT_WEANING_KEYWORDS)
-    needs_partner = any(keyword in message_lower for keyword in PARTNER_KEYWORDS)
-    
-    # Construir lista de secciones adicionales del prompt
-    prompt_sections = []
-    if needs_behavior:
-        prompt_sections.append("behavior.md")
-    if needs_routine:
-        prompt_sections.extend(["routines.md"])
-    if needs_night_weaning:
-        prompt_sections.append("night_weaning.md")
-    if needs_partner:
-        prompt_sections.append("partner_support.md")
+    # Determinar qué secciones específicas necesitamos
+    needed_sections = []
+    if any(keyword in message_lower for keyword in BEHAVIOR_KEYWORDS):
+        needed_sections.append("behavior.md")
+    if any(keyword in message_lower for keyword in ROUTINE_KEYWORDS):
+        needed_sections.append("routines.md")
+    if any(keyword in message_lower for keyword in NIGHT_WEANING_KEYWORDS):
+        needed_sections.append("night_weaning.md")
+    if any(keyword in message_lower for keyword in PARTNER_KEYWORDS):
+        needed_sections.append("partner_support.md")
 
-    # Cargar y formatear el prompt maestro
-    system_prompt_template = load_system_prompt(prompt_sections)
+    # 1. SYSTEM PROMPT BASE (pequeño y estático)
+    base_system_prompt = load_base_system_prompt()
     
-    # Detectar tipo de consulta y agregar template específico
+    # Agregar template específico al system prompt si es necesario
     specific_template = detect_consultation_type_and_load_template(payload.message)
     if specific_template:
-        system_prompt_template += specific_template
-        print(f"🎯 Template específico detectado y agregado")
+        base_system_prompt += specific_template
+        print(f"🎯 Template específico agregado al system prompt")
 
-    instruction_dataset = load_instruction_dataset()
-
-    # Siempre agregar dataset general de instrucciones Lumi (v1)
-    if instruction_dataset:
-        system_prompt_template += "\n\n" + instruction_dataset
-        print("📚 Dataset lumi_instruction_dataset_v1.md cargado correctamente")
-    
-    # Formatear el perfil que viene en el payload
+    # 2. CONTEXTO DINÁMICO (se enviará como parte del mensaje del usuario)
     profile_text = ""
-    if payload.profile:
+    if user_id:
+        try:
+            # Obtener perfil del bebé específico si se proporciona baby_id
+            baby_with_profile = await get_baby_profile(user_id, baby_id)
+            if baby_with_profile:
+                profile_text = format_baby_profile_for_context(baby_with_profile, lang='es')
+                baby_name = baby_with_profile.get('name', 'Bebé')
+                baby_selected_id = baby_with_profile.get('id', baby_id or 'N/A')
+                print(f"✅ Perfil de bebé específico cargado: {baby_name} (ID: {baby_selected_id})")
+            else:
+                print(f"⚠️ No se pudo cargar perfil del bebé (user_id: {user_id}, baby_id: {baby_id})")
+        except Exception as e:
+            print(f"❌ Error obteniendo perfil del bebé: {e}")
+
+    # Agregar perfil básico del payload como fallback
+    if payload.profile and not profile_text:
         profile_data = payload.profile
-        profile_text = (
-            "**Perfil actual en esta consulta:**\n"
-            f"- Fecha de nacimiento: {profile_data.get('dob')}\n"
-            f"- Alimentación: {profile_data.get('feeding')}\n"
-        )
-    
-    # Cantidad de caracteres que se le pasará del rag al prompt, de conocimiento
-    max_rag_length = 10000
-    if len(combined_rag_context) > max_rag_length:
-        combined_rag_context = combined_rag_context[:max_rag_length] + "...\n[Contexto truncado por longitud]"
-    
-    formatted_system_prompt = system_prompt_template.format(
-        today=today,
-        user_context=user_context if user_context else "No hay información específica del usuario disponible.",
-        profile_context=profile_text if profile_text else "No se proporcionó perfil específico en esta consulta.",
-        routines_context=routines_context if routines_context else "No hay rutinas específicas registradas.",
-        rag_context=combined_rag_context if combined_rag_context else "No hay contexto especializado disponible para esta consulta."
+        profile_text = f"Fecha de nacimiento: {profile_data.get('dob', 'N/A')}"
+
+    # Construir contexto dinámico optimizado
+    dynamic_context = build_dynamic_context(
+        user_context=user_context,
+        profile_text=profile_text,
+        routines_context=routines_context,
+        combined_rag_context=combined_rag_context,
+        specific_sections=needed_sections
     )
 
-    # Agregar instrucción específica sobre originalidad de formato
-    formatted_system_prompt += "\n\n" + """
-        ## INSTRUCCIÓN CRÍTICA SOBRE FORMATO:
-        - NO copies la estructura, formato o estilo de mensajes anteriores en el historial
-        - Cada respuesta debe ser ORIGINAL y específica para la consulta actual
-        - Varía tu estructura: usa párrafos fluidos, listas simples, o formato según el contenido
-        - Evita patrones repetitivos como siempre usar "## 1. Título" o listas numeradas idénticas
-        - Responde de forma natural y conversacional, no como una plantilla rígida
-    """
-        
-    # Log de longitud del prompt para debug
-    prompt_length = len(formatted_system_prompt)
-    print(f"📏 Longitud del prompt del sistema: {prompt_length} caracteres")
-    
-    return formatted_system_prompt
+    # Log de tamaños para optimización
+    base_length = len(base_system_prompt)
+    dynamic_length = len(dynamic_context)
+    print(f"📏 System prompt base: {base_length} caracteres")
+    print(f"📏 Contexto dinámico: {dynamic_length} caracteres")
+    print(f"� Total optimizado: {base_length + dynamic_length}")
+
+    return {
+        "base_system_prompt": base_system_prompt,
+        "dynamic_context": dynamic_context,
+        "metadata": {
+            "base_prompt_length": base_length,
+            "dynamic_context_length": dynamic_length,
+            "sections": needed_sections,
+            "optimization_ratio": (base_length + dynamic_length) / 29273  # Comparación con el anterior
+        }
+    }

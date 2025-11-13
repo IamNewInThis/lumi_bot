@@ -110,6 +110,7 @@ keywords = {
     'horarios': ['rutina_del_bebe.pdf'],
     'actividades': ['simplicity_parenting.pdf', 'rutina_del_bebe.pdf', 'el_cerebro_del_nino.pdf'],
     'estructura': ['simplicity_parenting.pdf', 'rutina_del_bebe.pdf'],
+    'baño': ['rutina_del_bebe.pdf', 'cuidados_diarios.pdf', 'cuidados_corporales.pdf'],
 
     # 🌙 SUEÑO / DESCANSO
     'sueño': ['sueño_infantil.pdf'],
@@ -187,6 +188,7 @@ keywords = {
     'schedule': ['rutina_del_bebe.pdf'],
     'activities': ['simplicity_parenting.pdf', 'rutina_del_bebe.pdf', 'el_cerebro_del_nino.pdf'],
     'structure': ['simplicity_parenting.pdf', 'rutina_del_bebe.pdf'],
+    'shower': ['rutina_del_bebe.pdf', 'cuidados_diarios.pdf', 'cuidados_corporales.pdf'],
 
     # 🌙 SLEEP / REST
     'sleepy': ['sueño_infantil.pdf'],
@@ -258,6 +260,7 @@ keywords = {
     'horários': ['rutina_del_bebe.pdf'],
     'atividades': ['simplicity_parenting.pdf', 'rutina_del_bebe.pdf', 'el_cerebro_del_nino.pdf'],
     'estrutura': ['simplicity_parenting.pdf', 'rutina_del_bebe.pdf'],
+    'banho': ['rutina_del_bebe.pdf', 'cuidados_diarios.pdf', 'cuidados_corporales.pdf'],
 
     # 🌙 SONO / DESCANSO
     'sono': ['sueño_infantil.pdf'],
