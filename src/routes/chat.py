@@ -6,13 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from pathlib import Path
 from typing import List
-from ..models.chat import ChatRequest, KnowledgeConfirmRequest, ProfileKeywordsConfirmRequest
+from ..models.chat import ChatRequest, ProfileKeywordsConfirmRequest
 from ..auth import get_current_user
 from src.rag.utils import get_rag_context, get_rag_context_simple
 from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
-from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, detect_profile_keywords, detect_profile_keywords_fuzzy, print_detected_keywords_summary
+from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES, detect_profile_keywords_fuzzy
+from src.extractors.profile_extractor import extract_profile_info
 from ..rag.retriever import supabase
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..services.knowledge_service import BabyKnowledgeService
@@ -30,6 +31,7 @@ from ..services.chat_service import (
     detect_routine_in_response,
     detect_knowledge_in_message,
     build_system_prompt,
+    build_chat_prompt,
     ROUTINE_KEYWORDS,
     NIGHT_WEANING_KEYWORDS,
     PARTNER_KEYWORDS,
@@ -546,7 +548,10 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     )
 
     # Construir el prompt maestro (el sistema base ya instruye al modelo sobre el idioma)
-    formatted_system_prompt = await build_system_prompt(payload, user_context, routines_context, combined_rag_context, user["id"])
+    system_prompt_data = await build_system_prompt(
+        payload, user_context, routines_context, combined_rag_context, user["id"]
+    )
+    formatted_system_prompt = system_prompt_data["system_prompt"]
 
     # Detectar tipo de consulta y agregar template específico
     specific_template = detect_consultation_type_and_load_template(payload.message)
@@ -561,7 +566,11 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         return {"answer": reference_response, "usage": {}}
 
     # Construcción del body con prompt unificado
-    messages = [{"role": "system", "content": formatted_system_prompt}]
+    messages = build_chat_prompt(
+        formatted_system_prompt=formatted_system_prompt,
+        history=history,
+        user_message=payload.message
+    )
     # print(formatted_system_prompt)
     
     # Agregar historial con contexto claro
@@ -582,7 +591,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
 
     body = {
         "model": OPENAI_MODEL,
-        "messages": messages,
+        "messages": [m.to_dict() for m in messages],
         "max_tokens": 1800,
         "temperature": 0.4,
         "top_p": 0.9,
@@ -638,7 +647,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     assistant = data.get("choices", [])[0].get("message", {}).get("content", "")
     
     # Formatear la respuesta para mayor naturalidad
-    assistant = format_llm_output(assistant)
+    #assistant = format_llm_output(assistant)
     
     usage = data.get("usage", {})
     # Variables para controlar el flujo de detección dual

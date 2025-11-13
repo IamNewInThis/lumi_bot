@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from ..rag.retriever import supabase
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from ..services.knowledge_service import BabyKnowledgeService
 from ..utils.knowledge_cache import confirmation_cache
 from ..services.routine_service import RoutineService
@@ -178,6 +179,23 @@ def detect_consultation_type_and_load_template(message):
             return f"\n\n## TEMPLATE ESPECÍFICO - {detected_type.upper()}\n{template_content}"
     
     return ""
+
+def build_chat_prompt(formatted_system_prompt: str, history: list, user_message: str):
+    """
+    Construye un prompt estructurado para Lumi usando LangChain ChatPromptTemplate.
+    Separa el system prompt, el historial y el mensaje actual del usuario.
+    """
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", formatted_system_prompt),
+        MessagesPlaceholder(variable_name="history"),
+        ("user", "{user_message}")
+    ])
+
+    return prompt.format_messages(
+        history=history,
+        user_message=user_message
+    )
 
 async def handle_knowledge_confirmation(user_id: str, message: str):
     """
@@ -695,4 +713,11 @@ async def build_system_prompt(payload, user_context, routines_context, combined_
     prompt_length = len(formatted_system_prompt)
     print(f"📏 Longitud del prompt del sistema: {prompt_length} caracteres")
         
-    return formatted_system_prompt
+    return {
+        "system_prompt": formatted_system_prompt,
+        "metadata": {
+            "prompt_length": len(formatted_system_prompt),
+            "sections": prompt_sections,
+            "includes_examples": bool(instruction_dataset)
+        }
+    }
