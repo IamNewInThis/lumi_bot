@@ -33,6 +33,17 @@ class BabyProfile(BaseProfileModel):
         description="Habitación donde duerme (propia, de los padres, etc.)."
     )
 
+    # Seccion de cuidados diarios
+    bath_frequency: Optional[str] = Field(None, description="Frecuencia del baño del bebé (ej: diario, cada dos días, semanal).")
+    skin_care: Optional[str] = Field(
+        None,
+        description="Rutina de cuidado de la piel (sin productos, hidratación diaria, etc.)."
+    )
+    comfort_object: Optional[list[str]] = Field(
+        default=None,
+        description="Lista de objetos de confort preferidos (blankie, pacifier, stuffed_animal, etc.)."
+    )
+
 # =========================================================
 # ⚙️ LLM CONFIG
 # =========================================================
@@ -59,5 +70,5 @@ def normalize_text(text: str) -> str:
     return "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
 
 def keyword_match(text: str, keywords: list[str]) -> bool:
-    """True si alguna palabra clave aparece en el texto normalizado."""
-    return any(keyword in text for keyword in keywords)
+    """True si alguna palabra clave (normalizada) aparece en el texto normalizado."""
+    return any(normalize_text(keyword) in text for keyword in keywords)
