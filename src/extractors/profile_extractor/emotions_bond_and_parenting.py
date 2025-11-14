@@ -58,6 +58,10 @@ COMFORT_OBJECT_KEYWORDS = {
         "toy he loves",
         "favorite toy",
         "su juguete especial",
+        "juguete preferido",
+        "toy every day",
+        "plays with that toy",
+        "juega con ese juguete",
     ],
     "caregiver_clothing": [
         "camiseta de mama",

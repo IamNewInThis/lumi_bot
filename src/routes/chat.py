@@ -623,7 +623,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     )
     
     # print(formatted_system_prompt)
-    # print(messages)
+    print(messages)
 
     body = {
         "model": OPENAI_MODEL,
@@ -684,36 +684,6 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     #assistant = format_llm_output(assistant)
     
     usage = data.get("usage", {})
-    # Variables para controlar el flujo de detección dual
-    routine_detected_and_saved = False
-    assistant_with_routine_confirmation = ""
-
-    # SEGUNDA PRIORIDAD: Detectar conocimiento importante en el mensaje del usuario
-    try:
-        selected_baby_id = payload.baby_id if "baby_id" in payload.__fields_set__ else None
-        
-        knowledge_confirmation_message = await detect_knowledge_in_message(
-            user_id, 
-            payload.message, 
-            babies_context, 
-            selected_baby_id
-        )
-        
-        if knowledge_confirmation_message:
-            # Agregar la pregunta de confirmación a la respuesta
-            assistant_with_confirmation = f"{assistant}\n\n🧠 {knowledge_confirmation_message}"
-            
-            return with_profile_meta({
-                "answer": assistant_with_confirmation, 
-                "usage": usage
-            })
-        
-    except Exception as e:
-        print(f"Error en detección de conocimiento: {e}")
-        import traceback
-        traceback.print_exc()
-        # Continuar normalmente si falla la detección
-        pass
 
     return with_profile_meta({
         "answer": assistant, 

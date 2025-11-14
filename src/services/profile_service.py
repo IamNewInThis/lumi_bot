@@ -60,6 +60,20 @@ class BabyProfileService:
             "transitioning": {"es": "objeto de transición", "en": "transition object", "pt": "objeto de transição"},
             "other": {"es": "otro objeto de confort", "en": "other comfort object", "pt": "outro objeto de conforto"},
         },
+        "family_members": {
+            "mother": {"es": "madre", "en": "mother", "pt": "mãe"},
+            "father": {"es": "padre", "en": "father", "pt": "pai"},
+            "siblings": {"es": "hermanos/as", "en": "siblings", "pt": "irmãos/irmãs"},
+            "grandparents": {"es": "abuelos/as", "en": "grandparents", "pt": "avós"},
+            "caregiver": {"es": "cuidador/a", "en": "caregiver", "pt": "cuidador/a"},
+            "pets": {"es": "mascotas", "en": "pets", "pt": "animais de estimação"},
+        },
+        "go_to_daycare": {
+            "no": {"es": "no asiste a guardería", "en": "does not attend daycare", "pt": "não frequenta creche"},
+            "daycare": {"es": "guardería", "en": "daycare", "pt": "creche"},
+            "preschool": {"es": "jardín infantil / preescolar", "en": "preschool", "pt": "pré-escola"},
+            "school": {"es": "colegio / escuela", "en": "school", "pt": "escola"},
+        },
     }
 
     # =========================================================
@@ -307,6 +321,7 @@ class BabyProfileService:
             "bath_frequency": "daily care",
             "skin_care": "daily care",
             "comfort_object": "emotions bonds and respectful parenting",
+            "family_members": "family context and environment",
         }
 
         saved = 0

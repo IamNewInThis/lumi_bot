@@ -43,6 +43,14 @@ class BabyProfile(BaseProfileModel):
         default=None,
         description="Lista de objetos de confort preferidos (blankie, pacifier, stuffed_animal, etc.)."
     )
+    family_members: Optional[list[str]] = Field(
+        default=None,
+        description="Miembros de la familia que conviven o cuidan (mother, father, siblings, grandparents, caregiver, pets)."
+    )
+    go_to_daycare: Optional[str] = Field(
+        default=None,
+        description="Asistencia a guardería/colegio (no, daycare, preschool, school)."
+    )
 
 # =========================================================
 # ⚙️ LLM CONFIG
