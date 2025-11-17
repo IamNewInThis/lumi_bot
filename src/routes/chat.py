@@ -490,6 +490,8 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         try:
             extracted_profile = extract_profile_info(payload.message)
             profile_data = extracted_profile.model_dump()
+
+            # 1) Filtrar campos no vacíos
             filtered_profile_fields = {
                 field: value
                 for field, value in profile_data.items()
@@ -497,30 +499,51 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             }
 
             if filtered_profile_fields:
+                # 3) Exponer todos los campos detectados
                 profile_extraction_result = {
                     "baby_id": target_baby_id,
                     "baby_name": target_baby_name,
                     "data": filtered_profile_fields,
                     "triggered_by": profile_trigger_method,
                 }
+
                 print(f"🧠 [PROFILE_EXTRACTOR] Datos detectados mediante {profile_trigger_method}.")
                 for field, value in filtered_profile_fields.items():
                     print(f"   • Campo '{field}' = {value}")
+
                 if not target_baby_id:
                     print("⚠️ [PROFILE_EXTRACTOR] No se encontró baby_id para asociar la extracción.")
                 else:
                     keyword_entries = []
+
+                    # 4) Procesar listas → insertar TODOS los valores
                     for field, value in filtered_profile_fields.items():
-                        keyword_entries.append({
-                            "category": "profile_extractor",
-                            "subcategory": field,
-                            "field": field,
-                            "field_key": field,
-                            "keyword": value,
-                            "source": "profile_extractor",
-                            "profile_field": field,
-                            "profile_value": value,
-                        })
+                        if isinstance(value, list):
+                            for item in value:
+                                print(f"   • Campo '{field}' = {item} (lista)")
+                                keyword_entries.append({
+                                    "category": "profile_extractor",
+                                    "subcategory": field,
+                                    "field": field,
+                                    "field_key": field,
+                                    "keyword": item,
+                                    "source": "profile_extractor",
+                                    "profile_field": field,
+                                    "profile_value": item,
+                                })
+
+                        # 5) Procesar valores simples
+                        else:
+                            keyword_entries.append({
+                                "category": "profile_extractor",
+                                "subcategory": field,
+                                "field": field,
+                                "field_key": field,
+                                "keyword": value,
+                                "source": "profile_extractor",
+                                "profile_field": field,
+                                "profile_value": value,
+                            })
 
                     if keyword_entries:
                         profile_keywords_pending = {
@@ -530,13 +553,16 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
                             "count": len(keyword_entries),
                             "source": "profile_extractor",
                         }
+
                         print(f"📝 [PROFILE_EXTRACTOR] Preparadas {len(keyword_entries)} entradas para confirmación.")
                     else:
                         print("ℹ️ [PROFILE_EXTRACTOR] Sin entradas válidas para confirmar.")
             else:
                 print("ℹ️ [PROFILE_EXTRACTOR] Se activó el extractor pero no se encontraron campos.")
+
         except Exception as e:
             print(f"❌ [PROFILE_EXTRACTOR] Error ejecutando extractor: {e}")
+
 
     # Contexto RAG, perfiles/bebés e historial de conversación
     rag_context = ""

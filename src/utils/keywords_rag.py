@@ -346,7 +346,8 @@ TEMPLATE_FILES = {
     'creative_food_template': 'template_ideas_creativas_alimentos.md',
     'travel_template': 'travel_with_children.md',
     'weaning_template': 'template_destete_lactancia.md',
-    'references_template': 'template_referencias.md'
+    'references_template': 'template_referencias.md',
+    'food_rejection': 'template_alimentacion_rechazo.md'
 }
 
 # ============================================================================

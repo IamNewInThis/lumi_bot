@@ -59,10 +59,11 @@ Templates disponibles:
 - travel_template: cuando hablan de viajes, vacaciones, traslados o qué llevar.
 - weaning_template: cuando consultan sobre destete o transición de la lactancia.
 - references_template: cuando preguntan por fuentes, bibliografía o fundamentación.
+- food_rejection: cuando consultan sobre rechazo alimentario o dificultades para alimentar.
 
 Responde siguiendo este esquema JSON:
 {{
-  "template_key": "routine_template | creative_food_template | travel_template | weaning_template | references_template | null",
+  "template_key": "routine_template | creative_food_template | travel_template | weaning_template | references_template | food_rejection | null",
   "reason": "explicación breve (máx 25 palabras)",
   "confidence": 0.0-1.0
 }}

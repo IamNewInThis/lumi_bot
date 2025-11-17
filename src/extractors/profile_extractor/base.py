@@ -24,13 +24,77 @@ class BaseProfileModel(BaseModel):
 class BabyProfile(BaseProfileModel):
     """Modelo consolidado que se expone al frontend."""
     # Campos provenientes de la sección sleep_and_rest
-    sleep_location: Optional[str] = Field(
+    sleep_location: str | list[str] | None = Field(
         None,
         description="Lugar donde el bebé duerme (ej: cuna, cama con los padres, moisés)."
     )
-    sleep_room: Optional[str] = Field(
+    sleep_room: str | list[str] | None = Field(
         None,
         description="Habitación donde duerme (propia, de los padres, etc.)."
+    )
+    bedtime_start: str | None = Field(
+        None,
+        description="Hora aproximada en la que se acuesta."
+    )
+    bedtime_caregiver: str | list[str] | None = Field(
+        None,
+        description="Quién acompaña al bebé en la rutina de sueño."
+    )
+    sleep_association: str | list[str] | None = Field(
+        None,
+        description="Asociaciones de sueño (ej: pecho, brazos, chupete)."
+    )
+    sleep_light: str | None = Field(
+        None,
+        description="Condiciones de luz al dormir."
+    )
+    sleep_sound: str | None = Field(
+        None,
+        description="Condiciones de sonido al dormir."
+    )
+    sleep_pajama: str | list[str] | None = Field(
+        None,
+        description="Vestimenta o capas con las que duerme."
+    )
+    nap_count: str | None = Field(
+        None,
+        description="Cantidad de siestas diarias."
+    )
+    bedtime_hour: str | None = Field(
+        None,
+        description="Horario típico de inicio de la noche."
+    )
+    night_wakings: str | None = Field(
+        None,
+        description="Número aproximado de despertares durante la noche."
+    )
+    night_soothing: str | list[str] | None = Field(
+        None,
+        description="Cómo se reconforta al bebé durante los despertares nocturnos."
+    )
+    night_caregiver: str | list[str] | None = Field(
+        None,
+        description="Quién atiende los despertares nocturnos."
+    )
+    wakeup_hour: str | None = Field(
+        None,
+        description="Horario típico de despertar matutino."
+    )
+    night_feeding: str | None = Field(
+        None,
+        description="Frecuencia o existencia de tomas nocturnas."
+    )
+    night_feeding_purpose: str | list[str] | None = Field(
+        None,
+        description="Propósito de las tomas nocturnas."
+    )
+    night_feeding_type: str | list[str] | None = Field(
+        None,
+        description="Tipo de alimentación nocturna."
+    )
+    sleep_tired_signs: str | list[str] | None = Field(
+        None,
+        description="Señales típicas de cansancio."
     )
 
     # Seccion de cuidados diarios
