@@ -36,7 +36,11 @@ from ..services.chat_service import (
     PARTNER_KEYWORDS,
     BEHAVIOR_KEYWORDS
 )
-from lumi_bot.src.utils.triggers.profile_triggers import should_trigger_profile_extraction, should_trigger_profile_extraction_llm
+from ..utils.triggers.profile_triggers import (
+    should_trigger_profile_extraction,
+    should_trigger_profile_extraction_llm,
+)
+from ..utils.triggers.template_triggers import should_trigger_template
 
 router = APIRouter()
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -93,6 +97,10 @@ def detect_consultation_type_and_load_template(message: str) -> str:
     """
     Wrapper legado para mantener compatibilidad con código existente.
     """
+    if not should_trigger_template(message):
+        print("⏭️ [TEMPLATE] Trigger no activado; se omite template_extractor.")
+        return ""
+
     block, selection = build_template_block(message)
 
     if selection.template_key:

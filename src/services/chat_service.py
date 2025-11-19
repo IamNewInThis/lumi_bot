@@ -10,6 +10,7 @@ from ..services.routine_service import RoutineService
 from ..utils.routine_cache import routine_confirmation_cache
 from ..utils.knowledge_detector import KnowledgeDetector
 from ..extractors.template_extractor import build_template_block
+from ..utils.triggers.template_triggers import should_trigger_template
 
 # Constantes necesarias para build_system_prompt
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -238,6 +239,10 @@ def detect_consultation_type_and_load_template(message):
     """
     Delegado principal que utiliza el template_extractor centralizado.
     """
+    if not should_trigger_template(message):
+        print("⏭️ [TEMPLATE] Trigger no activado; se omite template_extractor.")
+        return ""
+
     block, selection = build_template_block(message)
 
     if selection.template_key:
