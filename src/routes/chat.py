@@ -36,7 +36,7 @@ from ..services.chat_service import (
     PARTNER_KEYWORDS,
     BEHAVIOR_KEYWORDS
 )
-from src.utils.profile_triggers import should_trigger_profile_extraction, should_trigger_profile_extraction_llm
+from lumi_bot.src.utils.triggers.profile_triggers import should_trigger_profile_extraction, should_trigger_profile_extraction_llm
 
 router = APIRouter()
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
