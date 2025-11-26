@@ -9,7 +9,7 @@ PROMPTS_DIR = Path(__file__).parent
 SECTIONS_DIR = PROMPTS_DIR / "sections"
 SYSTEM_DIR = PROMPTS_DIR / "system"
 
-def build_structured_prompt(lang, user_context, routines_context, rag_context, extra_sections=None, include_full_style=True):
+def build_structured_prompt(lang, user_context, rag_context, extra_sections=None, include_full_style=True):
     """
     Construye un prompt modular para Lumi con jerarquía optimizada:
     
@@ -26,7 +26,6 @@ def build_structured_prompt(lang, user_context, routines_context, rag_context, e
     Args:
         lang (str): Idioma detectado para la conversación
         user_context (str): Información del usuario y bebés
-        routines_context (str): Rutinas familiares registradas
         rag_context (str): Contenido recuperado por RAG
         extra_sections (list): Secciones adicionales según tema detectado
         include_full_style (bool): Si incluir guía de estilo completa o versión resumida
@@ -70,15 +69,12 @@ Responde exclusivamente en **{lang.upper()}** durante toda la conversación. No 
 """
 
     # --- 5️⃣ CONTEXTO: información dinámica ---
-    if user_context or routines_context:
+    if user_context:
         system_prompt += "## 👩‍👧 Contexto del Usuario\n"
         
         if user_context:
             system_prompt += f"{user_context}\n\n"
         
-        if routines_context:
-            system_prompt += f"## 🕐 Rutinas Familiares\n{routines_context}\n\n"
-
     # --- 6️⃣ CONOCIMIENTO: RAG ---
     if rag_context and rag_context.strip():
         system_prompt += f"""## 📚 Conocimiento de Respaldo (RAG)

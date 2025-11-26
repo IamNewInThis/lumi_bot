@@ -15,26 +15,11 @@ from src.state.session_store import get_lang, set_lang
 from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES
 from src.extractors.profile_extractor import BabyProfile, extract_profile_info
 from ..rag.retriever import supabase
-from ..utils.knowledge_detector import KnowledgeDetector
-from ..services.knowledge_service import BabyKnowledgeService
-from ..utils.knowledge_cache import confirmation_cache
-from ..utils.routine_detector import RoutineDetector
-from ..services.routine_service import RoutineService
-from ..utils.routine_cache import routine_confirmation_cache
 from ..utils.reference_detector import ReferenceDetector
 from ..utils.source_cache import source_cache
 from ..services.profile_service import BabyProfileService
 from ..services.chat_service import (
-    handle_knowledge_confirmation,
-    handle_routine_confirmation,
-    detect_routine_in_response,
-    detect_knowledge_in_message,
     build_system_prompt,
-    build_chat_prompt,
-    ROUTINE_KEYWORDS,
-    NIGHT_WEANING_KEYWORDS,
-    PARTNER_KEYWORDS,
-    BEHAVIOR_KEYWORDS
 )
 from src.utils.profile_triggers import should_trigger_profile_extraction, should_trigger_profile_extraction_llm
 
@@ -169,32 +154,7 @@ async def get_user_profiles_and_babies(user_id, supabase_client, baby_id=None, b
             selected_babies = babies_data
         else:
             print(f"👶 Bebé seleccionado para contexto: {selected_babies[0]['name']} ({baby_id})")
-
-    # Obtener conocimiento específico
-    if baby_id and selected_babies:
-        baby = selected_babies[0]
-        knowledge_items = await BabyKnowledgeService.get_baby_knowledge(user_id, baby_id)
-        knowledge_by_baby = {
-            baby_id: {
-                "baby_name": baby["name"],
-                "knowledge": knowledge_items
-            }
-        }
-    else:
-        knowledge_by_baby = await BabyKnowledgeService.get_all_user_knowledge(user_id)
-    knowledge_context = BabyKnowledgeService.format_knowledge_for_context(knowledge_by_baby)
     
-    # Obtener rutinas
-    if baby_id and selected_babies:
-        baby = selected_babies[0]
-        routines_list = await RoutineService.get_user_routines(user_id, baby_id)
-        routines_by_baby = {
-            baby["name"]: routines_list
-        }
-    else:
-        routines_by_baby = await RoutineService.get_all_user_routines(user_id)
-    routines_context = RoutineService.format_routines_for_context(routines_by_baby)
-
     # TODO: Agregar relacion con perfiles si es necesario
     profile_texts = [
         f"- {p['name']}, fecha de nacimiento {p['birthdate']}"
@@ -234,11 +194,7 @@ async def get_user_profiles_and_babies(user_id, supabase_client, baby_id=None, b
     if baby_texts:
         context += "Bebés:\n" + "\n".join(baby_texts) + "\n\n"
     
-    # Agregar conocimiento específico si existe
-    if knowledge_context:
-        context += knowledge_context + "\n\n"
-
-    return context.strip(), routines_context.strip()
+    return context.strip()
 
 async def get_conversation_history(user_id, supabase_client, limit_per_role=4, baby_id=None, filter_by_baby=False, user_only=False):
     """
@@ -456,16 +412,6 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         enriched.setdefault("profile_extraction", profile_extraction_result)
         return enriched
 
-    # Verificar si es una respuesta de confirmación de preferencias (KNOWLEDGE)
-    knowledge_confirmation_result = await handle_knowledge_confirmation(user_id, payload.message)
-    if knowledge_confirmation_result:
-        return with_profile_meta(knowledge_confirmation_result)
-
-    # Verificar si es una respuesta de confirmación de RUTINA
-    routine_confirmation_result = await handle_routine_confirmation(user_id, payload.message)
-    if routine_confirmation_result:
-        return with_profile_meta(routine_confirmation_result)
-
     message_text = payload.message.strip()
     simple_greeting = is_simple_greeting(message_text)
     message_lower = payload.message.lower()
@@ -532,7 +478,6 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     # Contexto RAG, perfiles/bebés e historial de conversación
     rag_context = ""
     specialized_rag = ""
-    needs_night_weaning = needs_partner = needs_behavior = needs_routine = False
 
     if not simple_greeting:
         print(f"📝 Mensaje del usuario: '{payload.message[:100]}...'")
@@ -555,39 +500,11 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     else:
         is_reference_query = False
         # print(f"👋 [DEBUG] Es saludo simple - no se procesa RAG ni cache")
-        
-        needs_night_weaning = any(keyword in message_lower for keyword in NIGHT_WEANING_KEYWORDS)
-        needs_partner = any(keyword in message_lower for keyword in PARTNER_KEYWORDS)
-        needs_behavior = any(keyword in message_lower for keyword in BEHAVIOR_KEYWORDS)
-        needs_routine = any(keyword in message_lower for keyword in ROUTINE_KEYWORDS)
-
-        # Debug detallado de keywords
-        if needs_behavior:
-            detected_behavior_keywords = [kw for kw in BEHAVIOR_KEYWORDS if kw in message_lower]
-            print(f"🎭 BEHAVIOR keywords detectadas: {detected_behavior_keywords}")
-        
-        if needs_routine:
-            detected_routine_keywords = [kw for kw in ROUTINE_KEYWORDS if kw in message_lower]
-            print(f"📅 ROUTINE keywords detectadas: {detected_routine_keywords}")
-
-        print(f"🔍 Keywords detectadas: night_weaning={needs_night_weaning}, partner={needs_partner}, behavior={needs_behavior}, routine={needs_routine}")
-       
-    # Construir lista de secciones adicionales del prompt
-    prompt_sections = []
-    if not simple_greeting:
-        if needs_behavior:
-            prompt_sections.append("behavior.md")
-        if needs_routine:
-            prompt_sections.extend(["routines.md"])
-        if needs_night_weaning:
-            prompt_sections.append("night_weaning.md")
-        if needs_partner:
-            prompt_sections.append("partner_support.md")
-
+              
     # Combinar contextos RAG
     combined_rag_context = f"{rag_context}\n\n--- CONTEXTO ESPECIALIZADO ---\n{specialized_rag}" if specialized_rag else rag_context
     selected_baby_id = payload.baby_id if "baby_id" in payload.__fields_set__ else None
-    user_context, routines_context = await get_user_profiles_and_babies(
+    user_context = await get_user_profiles_and_babies(
         user["id"],
         supabase,
         baby_id=selected_baby_id,
@@ -602,11 +519,7 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
     )
 
     # Construir el prompt optimizado (separa base de contexto dinámico)
-    system_prompt_data = await build_system_prompt(
-        payload, user_context, routines_context, combined_rag_context, user["id"], target_baby_id
-    )
-    base_system_prompt = system_prompt_data["base_system_prompt"]
-    dynamic_context = system_prompt_data["dynamic_context"]
+    formatted_system_prompt = await build_system_prompt(payload, user_context, combined_rag_context, user["id"])
 
     # Si es una consulta de referencias, manejarla directamente sin pasar por LLM
     if not simple_greeting and is_reference_query:
@@ -615,14 +528,19 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         return with_profile_meta({"answer": reference_response, "usage": {}})
 
     # Construcción del body con prompt optimizado
-    messages = build_chat_prompt(
-        base_system_prompt=base_system_prompt,
-        dynamic_context=dynamic_context,
-        history=history,
-        user_message=payload.message
-    )
-    
-    # print(formatted_system_prompt)
+    messages = [{"role": "system", "content": formatted_system_prompt}]
+    if history:
+        messages.append({
+            "role": "system", 
+            "content": "=== CONTEXTO DE MENSAJES ANTERIORES DEL USUARIO (solo para entender el contexto, NO para copiar formato de respuestas) ==="
+        })
+        messages.extend(history)
+        messages.append({
+            "role": "system", 
+            "content": "=== FIN DEL CONTEXTO - Responde de forma original y específica ==="
+        })
+
+    messages.append({"role": "user", "content": payload.message})
     print(messages)
 
     body = {

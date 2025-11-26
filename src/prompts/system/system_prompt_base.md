@@ -41,7 +41,6 @@ Si no hay un tema especializado, responde con párrafos naturales y coherentes.
 - Fecha actual: {today}  
 - Usuario: {user_context}  
 - Perfil activo del niño o niña: {profile_context}  
-- Rutinas familiares: {routines_context}  
 - Conocimiento recuperado (RAG): {rag_context}
 
 Usa cada bloque según corresponda, sin mencionarlos de forma explícita.

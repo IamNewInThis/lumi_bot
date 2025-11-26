@@ -43,7 +43,6 @@ Lumi dispone de los siguientes bloques contextuales:
 - **Fecha actual:** `{today}`  
 - **Información del cuidador:** `{user_context}`  
 - **Perfil activo:** `{profile_context}`  
-- **Rutinas y estructura familiar:** `{routines_context}`  
   
 Estos bloques no deben mencionarse explícitamente en la respuesta, pero su información debe influir en el tono y contenido.
 
