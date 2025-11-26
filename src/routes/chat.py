@@ -12,8 +12,8 @@ from src.rag.utils import get_rag_context, get_rag_context_simple
 from src.utils.date_utils import calcular_edad, calcular_meses
 from src.utils.lang import detect_lang
 from src.state.session_store import get_lang, set_lang
-from src.utils.keywords_rag import TEMPLATE_KEYWORDS, TEMPLATE_FILES
 from src.extractors.profile_extractor import BabyProfile, extract_profile_info
+from src.extractors.template_extractor import build_template_block
 from ..rag.retriever import supabase
 from ..utils.reference_detector import ReferenceDetector
 from ..utils.source_cache import source_cache
@@ -21,7 +21,11 @@ from ..services.profile_service import BabyProfileService
 from ..services.chat_service import (
     build_system_prompt,
 )
-from src.utils.profile_triggers import should_trigger_profile_extraction, should_trigger_profile_extraction_llm
+from ..utils.triggers.profile_triggers import (
+    should_trigger_profile_extraction,
+    should_trigger_profile_extraction_llm,
+)
+from ..utils.triggers.template_triggers import should_trigger_template
 
 router = APIRouter()
 today = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -74,51 +78,64 @@ def is_simple_greeting(message: str) -> bool:
     normalized = normalize_for_greeting(message)
     return normalized in GREETING_PHRASES
 
-def detect_consultation_type_and_load_template(message):
+def detect_consultation_type_and_load_template(message: str) -> str:
     """
-    Detecta el tipo de consulta y carga el template específico correspondiente.
-    Utiliza keywords multiidioma desde keywords_rag.py
+    Wrapper legado para mantener compatibilidad con código existente.
     """
-    message_lower = message.lower()
-    
-    # Iterar sobre cada template y sus keywords
-    for template_key, keywords_by_lang in TEMPLATE_KEYWORDS.items():
-        # Combinar todas las keywords de todos los idiomas
-        all_keywords = []
-        for lang, keywords in keywords_by_lang.items():
-            all_keywords.extend(keywords)
-        
-        # Verificar si alguna keyword está en el mensaje
-        if any(keyword in message_lower for keyword in all_keywords):
-            template_filename = TEMPLATE_FILES.get(template_key)
-            
-            if not template_filename:
-                print(f"⚠️ No se encontró archivo de template para: {template_key}")
-                continue
-            
-            template_path = TEMPLATES_DIR / template_filename
-            
-            if template_path.exists():
-                print(f"🚀 Template detectado: {template_key} ({template_filename})")
-                
-                # Detectar qué idioma activó el template (para logging)
-                detected_lang = None
-                for lang, keywords in keywords_by_lang.items():
-                    if any(kw in message_lower for kw in keywords):
-                        detected_lang = lang
-                        break
-                
-                print(f"   Idioma detectado: {detected_lang}")
-                print(f"   Cargando desde: {template_path}")
-                
-                with open(template_path, "r", encoding="utf-8") as f:
-                    template_name = template_key.replace('_template', '').replace('_', ' ').title()
-                    return f"\n\n## TEMPLATE ESPECÍFICO PARA {template_name.upper()}:\n\n{f.read()}"
-            else:
-                print(f"⚠️ Template no encontrado: {template_path}")
-    
-    # Si no se detectó ningún template
-    return ""
+    if not should_trigger_template(message):
+        print("⏭️ [TEMPLATE] Trigger no activado; se omite template_extractor.")
+        return ""
+
+    block, selection = build_template_block(message)
+
+    if selection.template_key:
+        print(
+            f"🚀 Template detectado: {selection.template_key} "
+            f"(source={selection.source}, confidence={selection.confidence:.2f})"
+        )
+        if selection.trigger_keyword:
+            print(
+                f"   Keyword: '{selection.trigger_keyword}' "
+                f"({selection.trigger_language})"
+            )
+        elif selection.reason:
+            print(f"   Motivo LLM: {selection.reason}")
+
+    return block
+
+
+async def detect_routine_in_user_message(user_id: str, message: str, babies_context: list) -> str | None:
+    """
+    Detecta rutinas directamente en el mensaje del usuario usando RoutineDetector.
+    Retorna el texto de confirmación si se detecta y almacena la rutina en caché,
+    o None si no corresponde preguntar.
+    """
+    try:
+        print("🔎 Analizando mensaje del usuario para rutinas (LLM) …")
+        detected_routine = await RoutineDetector.analyze_message(message, babies_context)
+
+        if not detected_routine:
+            print("ℹ️ No se detectó rutina en el mensaje del usuario.")
+            return None
+
+        if not RoutineDetector.should_ask_confirmation(detected_routine):
+            print("ℹ️ Rutina detectada pero sin confianza suficiente para confirmar.")
+            return None
+
+        confirmation_message = RoutineDetector.format_confirmation_message(detected_routine)
+        if not confirmation_message:
+            print("ℹ️ Rutina detectada pero sin mensaje de confirmación válido.")
+            return None
+
+        routine_confirmation_cache.set_pending_confirmation(user_id, detected_routine, message)
+        print("✅ Rutina almacenada en caché a la espera de confirmación del usuario.")
+        return confirmation_message
+
+    except Exception as exc:
+        print(f"❌ Error ejecutando RoutineDetector en mensaje del usuario: {exc}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 def format_llm_output(text):
     """Limpia y formatea la salida del LLM para que sea más natural y legible."""
@@ -427,6 +444,8 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
         try:
             extracted_profile = extract_profile_info(payload.message)
             profile_data = extracted_profile.model_dump()
+
+            # 1) Filtrar campos no vacíos
             filtered_profile_fields = {
                 field: value
                 for field, value in profile_data.items()
@@ -434,30 +453,51 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
             }
 
             if filtered_profile_fields:
+                # 3) Exponer todos los campos detectados
                 profile_extraction_result = {
                     "baby_id": target_baby_id,
                     "baby_name": target_baby_name,
                     "data": filtered_profile_fields,
                     "triggered_by": profile_trigger_method,
                 }
+
                 print(f"🧠 [PROFILE_EXTRACTOR] Datos detectados mediante {profile_trigger_method}.")
                 for field, value in filtered_profile_fields.items():
                     print(f"   • Campo '{field}' = {value}")
+
                 if not target_baby_id:
                     print("⚠️ [PROFILE_EXTRACTOR] No se encontró baby_id para asociar la extracción.")
                 else:
                     keyword_entries = []
+
+                    # 4) Procesar listas → insertar TODOS los valores
                     for field, value in filtered_profile_fields.items():
-                        keyword_entries.append({
-                            "category": "profile_extractor",
-                            "subcategory": field,
-                            "field": field,
-                            "field_key": field,
-                            "keyword": value,
-                            "source": "profile_extractor",
-                            "profile_field": field,
-                            "profile_value": value,
-                        })
+                        if isinstance(value, list):
+                            for item in value:
+                                print(f"   • Campo '{field}' = {item} (lista)")
+                                keyword_entries.append({
+                                    "category": "profile_extractor",
+                                    "subcategory": field,
+                                    "field": field,
+                                    "field_key": field,
+                                    "keyword": item,
+                                    "source": "profile_extractor",
+                                    "profile_field": field,
+                                    "profile_value": item,
+                                })
+
+                        # 5) Procesar valores simples
+                        else:
+                            keyword_entries.append({
+                                "category": "profile_extractor",
+                                "subcategory": field,
+                                "field": field,
+                                "field_key": field,
+                                "keyword": value,
+                                "source": "profile_extractor",
+                                "profile_field": field,
+                                "profile_value": value,
+                            })
 
                     if keyword_entries:
                         profile_keywords_pending = {
@@ -467,13 +507,16 @@ async def chat_openai(payload: ChatRequest, user=Depends(get_current_user)):
                             "count": len(keyword_entries),
                             "source": "profile_extractor",
                         }
+
                         print(f"📝 [PROFILE_EXTRACTOR] Preparadas {len(keyword_entries)} entradas para confirmación.")
                     else:
                         print("ℹ️ [PROFILE_EXTRACTOR] Sin entradas válidas para confirmar.")
             else:
                 print("ℹ️ [PROFILE_EXTRACTOR] Se activó el extractor pero no se encontraron campos.")
+
         except Exception as e:
             print(f"❌ [PROFILE_EXTRACTOR] Error ejecutando extractor: {e}")
+
 
     # Contexto RAG, perfiles/bebés e historial de conversación
     rag_context = ""

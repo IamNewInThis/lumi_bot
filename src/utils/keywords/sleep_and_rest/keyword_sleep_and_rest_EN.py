@@ -40,17 +40,11 @@ KEYWORDS_SLEEP_EN = {
                     "doesn’t differentiate sleep time from play time"
                 ],
                 "starting_to_distinguish": [
-                    "starting to distinguish day and night",
-                    "can distinguish day and night",
-                    "can distinguish between day and night",
-                    "starting to distinguish sleep time from play time",
-                    "beginning to differentiate sleep time and play time",
-                    "beginning to differentiate sleep time and play time",
-                    "starting to differentiate sleep time and play time"
-                    "can distinguish sleep time from play time",
-                    "can differentiate sleep time and play time",
-                    "can differentiate sleep time and play time",
-                    "can differentiate sleep time and play time"
+                    "begins to distinguish",
+                    "begins to distinguish day from night",
+                    "begins to distinguish between day and night",
+                    "begins to distinguish sleep time from play time",
+                    "distinguish between day and night",
                 ],
                 "consolidated": [
                     "consolidated",
@@ -331,8 +325,8 @@ KEYWORDS_SLEEP_EN = {
             },
             "sleepwear": {
                 "base": {
-                    "short_sleeve_bodysuit": "with short-sleeve bodysuit",
-                    "long_sleeve_bodysuit": "with long-sleeve bodysuit",
+                    "short_sleeve_bodysuit": "with short sleeve bodysuit",
+                    "long_sleeve_bodysuit": "with long sleeve bodysuit",
                     "undershirt_or_no_bodysuit": "with undershirt or no bodysuit",
                     "light_underwear_or_diaper": "only with underwear or diaper",
                 },
